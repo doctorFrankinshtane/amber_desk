@@ -75,6 +75,32 @@ func TestTimelinePersistsAsMarkdownNotes(t *testing.T) {
 	}
 }
 
+func TestChecklistPersistsAsReadableMarkdown(t *testing.T) {
+	vault := t.TempDir()
+	connector, err := obsidian.New(obsidian.Config{VaultPath: vault})
+	if err != nil {
+		t.Fatal(err)
+	}
+	ref := connectors.DossierRef{CaseID: "CASE-CHECK", CaseName: "CHECKLIST"}
+	snapshot := connectors.ChecklistSnapshot{Version: 1, RecommendedTaskID: "TASK-1", Phases: []connectors.ChecklistPhase{{ID: "scope", Title: "Goal and boundaries", TitleKey: "checklist.phase.scope", Tasks: []connectors.ChecklistTask{{ID: "TASK-1", PhaseID: "scope", Title: "Define the question", Status: "done"}}}}}
+	written, err := connector.WriteChecklist(context.Background(), ref, snapshot)
+	if err != nil || written.Backend != "obsidian" {
+		t.Fatalf("write checklist: %v %+v", err, written)
+	}
+	reopened, err := obsidian.New(obsidian.Config{VaultPath: vault})
+	if err != nil {
+		t.Fatal(err)
+	}
+	restored, err := reopened.ReadChecklist(context.Background(), ref)
+	if err != nil || restored.RecommendedTaskID != "TASK-1" || restored.Phases[0].Tasks[0].Status != "done" {
+		t.Fatalf("read checklist: %v %+v", err, restored)
+	}
+	data, err := os.ReadFile(filepath.Join(vault, "Amber Desk", "Cases", "CASE-CHECK", "Checklist.md"))
+	if err != nil || !strings.Contains(string(data), "kind: investigation_checklist") || !strings.Contains(string(data), "- [x] Define the question") {
+		t.Fatalf("checklist markdown: %v %q", err, data)
+	}
+}
+
 func TestMapPersistsMarkersAndRoutes(t *testing.T) {
 	vault := t.TempDir()
 	connector, err := obsidian.New(obsidian.Config{VaultPath: vault})

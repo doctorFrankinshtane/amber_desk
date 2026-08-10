@@ -56,7 +56,7 @@ func New(config Config) (*Connector, error) {
 func (c *Connector) Metadata() connectors.Metadata {
 	return connectors.Metadata{
 		ID: ID, Name: "Obsidian", Description: "Markdown dossier synchronization with a local Obsidian vault",
-		Capabilities: []string{"dossier.read", "dossier.write", "timeline.read", "timeline.write", "timeline.delete", "map.read", "map.write", "relationships.read", "relationships.write", "relationships.attachments.read", "relationships.attachments.write", "relationships.attachments.delete", "workspace.state.read", "workspace.state.write", "cases.read", "cases.write", "cases.delete"}, Configured: c.configured,
+		Capabilities: []string{"dossier.read", "dossier.write", "timeline.read", "timeline.write", "timeline.delete", "map.read", "map.write", "relationships.read", "relationships.write", "relationships.attachments.read", "relationships.attachments.write", "relationships.attachments.delete", "checklist.read", "checklist.write", "workspace.state.read", "workspace.state.write", "cases.read", "cases.write", "cases.delete"}, Configured: c.configured,
 	}
 }
 

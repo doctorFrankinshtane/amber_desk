@@ -33,6 +33,7 @@ Extensible browser workspace for OSINT investigations. Amber Desk combines a den
 - Local OSINT Framework catalog with category, text, pricing, and status filters
 - One-click source provenance logging into the investigation chronology
 - Three-step dossier creation wizard with local-first Obsidian synchronization
+- Per-dossier investigation route with 8 phases, 43 editable steps, and a recommended next action
 - Detective-style relationship board with draggable clue cards and sourced threads
 - Local relationship-card attachments with hashes, downloads, and at-a-glance document stacks
 - Local photo covers for relationship cards with automatic first-image selection
@@ -71,6 +72,7 @@ When the vault is connected, the chronology and map use Obsidian as their canoni
 Amber Desk/
   Dossiers/
   Cases/<case-id>/
+    Checklist.md
     Timeline/<event-id>.md
     Map/Markers/<marker-id>.md
     Map/Routes/<route-id>.md
@@ -97,6 +99,12 @@ Each note has versioned YAML frontmatter for Amber Desk and a readable Markdown 
 The case block in the header opens the dossier picker. It can search, switch, or create another dossier without discarding existing investigations. The three-step wizard captures the case, primary subject, identifiers, and initial related entities. When Obsidian is connected, Amber Desk creates the dossier, case snapshot, index entry, and relationship notes in the vault during the same request.
 
 Deleting a dossier requires typing its exact case ID. Amber Desk moves the dossier, chronology, map, relationships, and case snapshot to the vault-local `.trash` directory. Timeline records use the same local-trash model and require a separate confirmation.
+
+## Investigation Route
+
+The dossier panel includes a beginner-friendly route covering scope, seed data, search planning, collection, preservation, verification, relationships, chronology, geography, analysis, and reporting. Amber Desk recommends the first pending step but never locks phases or workspaces. Investigators can complete, reopen, skip, edit, or pin any step and add their own tasks to any phase.
+
+Checklist state belongs to the active case. Obsidian stores it as a readable `Checklist.md`; providers implementing `ChecklistConnector` can supply the same `checklist.read` and `checklist.write` capabilities. Without a connected provider, Amber Desk uses a case-keyed memory fallback. Step actions only open the relevant local workspace and never launch an external query automatically.
 
 ## Relationship Board
 
@@ -190,6 +198,11 @@ See [.env.example](.env.example) for a local template.
 - `POST /api/map/routes`
 - `DELETE /api/map/routes/{id}`
 - `GET /api/catalog`
+- `GET /api/checklist`
+- `POST /api/checklist/tasks`
+- `PUT /api/checklist/tasks/{id}`
+- `DELETE /api/checklist/tasks/{id}`
+- `POST /api/checklist/reset`
 - `GET /api/relationships`
 - `POST /api/relationships/nodes`
 - `PUT /api/relationships/nodes/{id}`

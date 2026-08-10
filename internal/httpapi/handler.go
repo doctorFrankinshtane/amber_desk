@@ -31,6 +31,8 @@ type Handler struct {
 	edges            []connectors.RelationshipEdge
 	attachmentMu     sync.Mutex
 	attachments      map[string]map[string]memoryAttachment
+	checklistMu      sync.Mutex
+	checklists       map[string]connectors.ChecklistSnapshot
 	mapTiles         MapTileConfig
 	catalog          catalog.Provider
 	sherlock         *sherlock.Manager
@@ -54,7 +56,7 @@ func NewWithConfig(store *casefile.Store, registry *connectors.Registry, webFile
 	if toolContext == nil {
 		toolContext = context.Background()
 	}
-	h := &Handler{store: store, connectors: registry, web: http.FileServer(http.FS(webFiles)), mapTiles: config.MapTiles.normalized(), catalog: config.Catalog, attachments: make(map[string]map[string]memoryAttachment), sherlock: sherlock.NewManager(toolContext, config.SherlockRunner), allowRemoteTools: config.AllowRemoteToolRuns}
+	h := &Handler{store: store, connectors: registry, web: http.FileServer(http.FS(webFiles)), mapTiles: config.MapTiles.normalized(), catalog: config.Catalog, attachments: make(map[string]map[string]memoryAttachment), checklists: make(map[string]connectors.ChecklistSnapshot), sherlock: sherlock.NewManager(toolContext, config.SherlockRunner), allowRemoteTools: config.AllowRemoteToolRuns}
 	mux := http.NewServeMux()
 	mux.HandleFunc("GET /api/health", h.health)
 	mux.HandleFunc("GET /api/case", h.getCase)
@@ -89,6 +91,11 @@ func NewWithConfig(store *casefile.Store, registry *connectors.Registry, webFile
 	mux.HandleFunc("POST /api/relationships/edges", h.createRelationshipEdge)
 	mux.HandleFunc("PUT /api/relationships/edges/{id}", h.updateRelationshipEdge)
 	mux.HandleFunc("DELETE /api/relationships/edges/{id}", h.deleteRelationshipEdge)
+	mux.HandleFunc("GET /api/checklist", h.getChecklist)
+	mux.HandleFunc("POST /api/checklist/tasks", h.createChecklistTask)
+	mux.HandleFunc("PUT /api/checklist/tasks/{id}", h.updateChecklistTask)
+	mux.HandleFunc("DELETE /api/checklist/tasks/{id}", h.deleteChecklistTask)
+	mux.HandleFunc("POST /api/checklist/reset", h.resetChecklist)
 	mux.HandleFunc("GET /api/tools/sherlock/status", h.sherlockStatus)
 	mux.HandleFunc("POST /api/tools/sherlock/scans", h.startSherlockScan)
 	mux.HandleFunc("GET /api/tools/sherlock/scans/{id}", h.getSherlockScan)

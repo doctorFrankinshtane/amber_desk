@@ -48,6 +48,7 @@ async function init() {
   window.setInterval(updateClock, 1000);
   await Promise.all([loadCase(), loadIntegrations()]);
   await loadCases(true);
+  await window.AmberChecklist.init();
   window.setInterval(() => {
     if (!document.hidden && state.caseData && state.timelineBackend === "obsidian") loadTimeline(true);
   }, 15000);
@@ -522,6 +523,7 @@ function changeLanguage(language) {
     window.AmberCatalog.renderCategories();
     window.AmberCatalog.render();
   }
+  window.AmberChecklist?.render();
 }
 
 function enableControls() {

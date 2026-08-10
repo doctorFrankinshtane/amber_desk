@@ -95,6 +95,9 @@ func (h *Handler) deleteCase(w http.ResponseWriter, r *http.Request) {
 		writeConnectorError(w, err)
 		return
 	}
+	h.checklistMu.Lock()
+	delete(h.checklists, caseID)
+	h.checklistMu.Unlock()
 	next := casefile.BlankCase()
 	if nextID != "" {
 		data, readErr := store.ReadCase(r.Context(), nextID)

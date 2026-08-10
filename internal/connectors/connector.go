@@ -155,6 +155,33 @@ type RelationshipSnapshot struct {
 	Backend string             `json:"backend"`
 }
 
+type ChecklistTask struct {
+	ID        string `json:"id" yaml:"id"`
+	PhaseID   string `json:"phaseId" yaml:"phase_id"`
+	TitleKey  string `json:"titleKey,omitempty" yaml:"title_key,omitempty"`
+	Title     string `json:"title" yaml:"title"`
+	Edited    bool   `json:"edited,omitempty" yaml:"edited,omitempty"`
+	Note      string `json:"note,omitempty" yaml:"note,omitempty"`
+	Status    string `json:"status" yaml:"status"`
+	Custom    bool   `json:"custom" yaml:"custom"`
+	Action    string `json:"action,omitempty" yaml:"action,omitempty"`
+	UpdatedAt string `json:"updatedAt,omitempty" yaml:"updated_at,omitempty"`
+}
+
+type ChecklistPhase struct {
+	ID       string          `json:"id" yaml:"id"`
+	TitleKey string          `json:"titleKey" yaml:"title_key"`
+	Title    string          `json:"title" yaml:"title"`
+	Tasks    []ChecklistTask `json:"tasks" yaml:"tasks"`
+}
+
+type ChecklistSnapshot struct {
+	Version           int              `json:"version" yaml:"version"`
+	RecommendedTaskID string           `json:"recommendedTaskId,omitempty" yaml:"recommended_task_id,omitempty"`
+	Phases            []ChecklistPhase `json:"phases" yaml:"phases"`
+	Backend           string           `json:"backend" yaml:"-"`
+}
+
 type RelationshipAttachment struct {
 	ID        string `json:"id"`
 	NodeID    string `json:"nodeId"`
@@ -213,6 +240,12 @@ type RelationshipConnector interface {
 	CreateRelationshipEdge(context.Context, DossierRef, RelationshipEdge) (RelationshipEdge, error)
 	UpdateRelationshipEdge(context.Context, DossierRef, RelationshipEdge) (RelationshipEdge, error)
 	DeleteRelationshipEdge(context.Context, DossierRef, string) error
+}
+
+type ChecklistConnector interface {
+	Connector
+	ReadChecklist(context.Context, DossierRef) (ChecklistSnapshot, error)
+	WriteChecklist(context.Context, DossierRef, ChecklistSnapshot) (ChecklistSnapshot, error)
 }
 
 // WorkspaceStateConnector persists small opaque core snapshots without coupling

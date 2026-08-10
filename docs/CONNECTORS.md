@@ -15,7 +15,7 @@ type Connector interface {
 }
 ```
 
-Storage families are optional capability interfaces. A provider may implement `TimelineConnector`, `TimelineDeleteConnector`, `MapConnector`, `RelationshipConnector`, `RelationshipAttachmentConnector`, `WorkspaceStateConnector`, or `CaseStoreConnector`. The generic HTTP layer selects a connected provider by the capabilities declared in metadata and falls back to memory when no provider is available.
+Storage families are optional capability interfaces. A provider may implement `TimelineConnector`, `TimelineDeleteConnector`, `MapConnector`, `RelationshipConnector`, `RelationshipAttachmentConnector`, `ChecklistConnector`, `WorkspaceStateConnector`, or `CaseStoreConnector`. The generic HTTP layer selects a connected provider by the capabilities declared in metadata and falls back to memory when no provider is available.
 
 `WorkspaceStateConnector` stores small opaque snapshots such as `active-case`. It keeps provider packages independent from the internal case model while allowing a workspace to survive process restarts. Providers must validate state keys, keep state local to their configured storage root, and write snapshots atomically.
 
@@ -32,6 +32,7 @@ Every connector must expose:
 - Explicit capabilities such as `dossier.read`, `timeline.write`, and `map.read`
 - Relationship capabilities `relationships.read` and `relationships.write` for clue cards, positions, and sourced threads
 - Attachment capabilities `relationships.attachments.read`, `relationships.attachments.write`, and `relationships.attachments.delete` for card-local evidence files
+- Checklist capabilities `checklist.read` and `checklist.write` for a case-scoped investigation route
 - Workspace state capabilities `workspace.state.read` and `workspace.state.write` when the provider can restore the active workspace
 - Case lifecycle capabilities `cases.read`, `cases.write`, and `cases.delete`
 - `timeline.delete` only when event deletion uses safe provider-side semantics
@@ -81,6 +82,8 @@ DELETE /api/events/{id}
 ```
 
 Timeline and map providers use the shared `/api/timeline` and `/api/map` route families. Browser code never imports an Obsidian-specific API.
+
+Checklist providers use the shared `/api/checklist` route family. `ChecklistSnapshot` contains stable built-in task IDs plus custom tasks; providers persist the complete versioned snapshot and return `ErrEntityAbsent` before the first write so the HTTP layer can bootstrap the current template.
 
 Do not add a connector-specific route when an existing capability route can represent the operation. New capability families should receive a generic route and shared request/response types first.
 

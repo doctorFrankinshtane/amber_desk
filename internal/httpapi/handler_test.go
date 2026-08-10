@@ -440,6 +440,75 @@ func TestRelationshipPhotoCoverMemoryFallback(t *testing.T) {
 	}
 }
 
+func TestChecklistMemoryWorkflow(t *testing.T) {
+	handler := newHandler()
+	caseResponse := request(t, handler, http.MethodGet, "/api/case", "")
+	var active casefile.Case
+	decode(t, caseResponse, &active)
+
+	listed := request(t, handler, http.MethodGet, "/api/checklist", "")
+	if listed.Code != http.StatusOK {
+		t.Fatalf("list checklist: %d %s", listed.Code, listed.Body.String())
+	}
+	var snapshot connectors.ChecklistSnapshot
+	decode(t, listed, &snapshot)
+	if snapshot.Backend != "memory" || len(snapshot.Phases) != 8 || len(snapshot.Phases[0].Tasks) == 0 {
+		t.Fatalf("default checklist: %+v", snapshot)
+	}
+	builtInID := snapshot.Phases[0].Tasks[0].ID
+
+	updated := request(t, handler, http.MethodPut, "/api/checklist/tasks/"+builtInID, `{"caseId":"`+active.ID+`","status":"done","recommended":true}`)
+	if updated.Code != http.StatusOK {
+		t.Fatalf("update checklist: %d %s", updated.Code, updated.Body.String())
+	}
+	decode(t, updated, &snapshot)
+	if snapshot.RecommendedTaskID != builtInID || snapshot.Phases[0].Tasks[0].Status != "done" {
+		t.Fatalf("updated checklist: %+v", snapshot)
+	}
+
+	created := request(t, handler, http.MethodPost, "/api/checklist/tasks", `{"caseId":"`+active.ID+`","phaseId":"scope","title":"Check local archive","note":"Do not upload case data"}`)
+	if created.Code != http.StatusCreated {
+		t.Fatalf("create checklist task: %d %s", created.Code, created.Body.String())
+	}
+	decode(t, created, &snapshot)
+	custom := snapshot.Phases[0].Tasks[len(snapshot.Phases[0].Tasks)-1]
+	if !custom.Custom || custom.Title != "Check local archive" {
+		t.Fatalf("custom task: %+v", custom)
+	}
+
+	blocked := request(t, handler, http.MethodDelete, "/api/checklist/tasks/"+builtInID, `{"caseId":"`+active.ID+`"}`)
+	if blocked.Code != http.StatusConflict {
+		t.Fatalf("delete built-in = %d, want conflict", blocked.Code)
+	}
+	deleted := request(t, handler, http.MethodDelete, "/api/checklist/tasks/"+custom.ID, `{"caseId":"`+active.ID+`"}`)
+	if deleted.Code != http.StatusNoContent {
+		t.Fatalf("delete custom = %d %s", deleted.Code, deleted.Body.String())
+	}
+}
+
+func TestChecklistBootstrapsThroughObsidian(t *testing.T) {
+	vault := t.TempDir()
+	provider, err := obsidian.New(obsidian.Config{VaultPath: vault})
+	if err != nil {
+		t.Fatal(err)
+	}
+	web := fstest.MapFS{"index.html": {Data: []byte("<title>Amber Desk</title>")}}
+	handler := httpapi.New(casefile.NewStore(casefile.BlankCase()), connectors.NewRegistry(provider), web)
+	response := request(t, handler, http.MethodGet, "/api/checklist", "")
+	if response.Code != http.StatusOK {
+		t.Fatalf("obsidian checklist: %d %s", response.Code, response.Body.String())
+	}
+	var snapshot connectors.ChecklistSnapshot
+	decode(t, response, &snapshot)
+	if snapshot.Backend != "obsidian" || len(snapshot.Phases) != 8 {
+		t.Fatalf("obsidian snapshot: %+v", snapshot)
+	}
+	path := filepath.Join(vault, "Amber Desk", "Cases", casefile.BlankCase().ID, "Checklist.md")
+	if _, err := os.Stat(path); err != nil {
+		t.Fatalf("checklist was not bootstrapped: %v", err)
+	}
+}
+
 func newHandler() http.Handler {
 	web := fstest.MapFS{"index.html": {Data: []byte("<title>Amber Desk</title>")}}
 	registry := connectors.NewRegistry(&fakeConnector{})

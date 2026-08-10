@@ -95,6 +95,13 @@ _______/</pre>
           <header><h3 data-i18n="dossier.related">RELATED ENTITIES</h3><span id="relation-count">00</span></header>
           <ul class="relation-list" id="relations"></ul>
         </section>
+        <section class="investigation-checklist" id="investigation-checklist" aria-labelledby="checklist-title">
+          <header class="checklist-heading"><div><h3 id="checklist-title" data-i18n="checklist.title">INVESTIGATION ROUTE</h3><span id="checklist-backend">--</span></div><button id="checklist-add" type="button" data-i18n-title="checklist.add" data-i18n-aria-label="checklist.add">+</button></header>
+          <div class="checklist-progress"><span><b id="checklist-percent">0%</b><small id="checklist-count">0 / 0</small></span><i><b id="checklist-meter"></b></i></div>
+          <button class="checklist-next" id="checklist-next" type="button"><small data-i18n="checklist.next">RECOMMENDED NEXT STEP</small><strong id="checklist-next-title">--</strong></button>
+          <div id="checklist-phases" class="checklist-phases"></div>
+          <div id="checklist-error" class="checklist-error" hidden><span data-i18n="checklist.loadError">CHECKLIST UNAVAILABLE</span><button id="checklist-retry" type="button" data-i18n="checklist.retry">RETRY</button></div>
+        </section>
       </aside>
 
       <section class="timeline panel" id="timeline" aria-labelledby="timeline-title">
@@ -332,6 +339,19 @@ _______/</pre>
     </form>
   </dialog>
 
+  <dialog id="checklist-dialog" class="checklist-dialog">
+    <form id="checklist-form">
+      <header><div><span class="section-code">CHK</span><h2 id="checklist-dialog-title" data-i18n="checklist.edit">EDIT STEP</h2></div><button id="checklist-dialog-close" type="button" data-i18n-aria-label="common.close">X</button></header>
+      <input id="checklist-task-id" type="hidden">
+      <label><span data-i18n="checklist.phase">PHASE</span><select id="checklist-task-phase"></select></label>
+      <label><span data-i18n="checklist.taskTitle">STEP</span><input id="checklist-task-title" maxlength="200" required></label>
+      <label><span data-i18n="checklist.note">NOTE</span><textarea id="checklist-task-note" maxlength="1000" rows="4"></textarea></label>
+      <label><span data-i18n="common.status">STATUS</span><select id="checklist-task-status"><option value="pending" data-i18n="checklist.pending">PENDING</option><option value="done" data-i18n="checklist.done">DONE</option><option value="skipped" data-i18n="checklist.skipped">SKIPPED</option></select></label>
+      <label class="checklist-recommend"><input id="checklist-task-recommended" type="checkbox"><span data-i18n="checklist.pin">PIN AS NEXT STEP</span></label>
+      <footer><button id="checklist-task-delete" type="button" data-i18n="common.delete">DELETE</button><button id="checklist-dialog-cancel" type="button" data-i18n="common.close">CLOSE</button><button type="submit" data-i18n="common.save">SAVE</button></footer>
+    </form>
+  </dialog>
+
   <dialog id="sherlock-confirm" class="sherlock-confirm">
     <form method="dialog">
       <header><span class="section-code">EXT</span><h2 data-i18n="sherlock.externalTitle">EXTERNAL SHERLOCK SCAN</h2></header>
@@ -349,6 +369,7 @@ _______/</pre>
   <script src="dossier-wizard.js"></script>
   <script src="relationships.js"></script>
   <script src="catalog.js"></script>
+  <script src="checklist.js"></script>
   <script src="app.js"></script>
 </body>
 </html>
