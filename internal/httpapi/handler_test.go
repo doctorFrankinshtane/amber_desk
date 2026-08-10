@@ -11,6 +11,7 @@ import (
 
 	"amberdesk/internal/casefile"
 	"amberdesk/internal/connectors"
+	"amberdesk/internal/connectors/obsidian"
 	"amberdesk/internal/httpapi"
 )
 
@@ -52,6 +53,61 @@ func TestStatusValidation(t *testing.T) {
 	response := request(t, handler, http.MethodPatch, "/api/events/EV-108/status", `{"status":"discarded"}`)
 	if response.Code != http.StatusBadRequest {
 		t.Fatalf("status = %d, want %d", response.Code, http.StatusBadRequest)
+	}
+}
+
+func TestMemoryTimelineAndMapWorkflow(t *testing.T) {
+	handler := newHandler()
+
+	timeline := request(t, handler, http.MethodGet, "/api/timeline", "")
+	if timeline.Code != http.StatusOK || !strings.Contains(timeline.Body.String(), `"backend":"memory"`) {
+		t.Fatalf("timeline response: %d %s", timeline.Code, timeline.Body.String())
+	}
+	createdEvent := request(t, handler, http.MethodPost, "/api/timeline/events", `{"title":"Manual observation","type":"identity","confidence":70}`)
+	if createdEvent.Code != http.StatusCreated {
+		t.Fatalf("create timeline event: %d %s", createdEvent.Code, createdEvent.Body.String())
+	}
+
+	first := request(t, handler, http.MethodPost, "/api/map/markers", `{"label":"A","latitude":10,"longitude":20}`)
+	second := request(t, handler, http.MethodPost, "/api/map/markers", `{"label":"B","latitude":30,"longitude":40}`)
+	if first.Code != http.StatusCreated || second.Code != http.StatusCreated {
+		t.Fatalf("create markers: %d %d", first.Code, second.Code)
+	}
+	var markerA, markerB connectors.MapMarker
+	decode(t, first, &markerA)
+	decode(t, second, &markerB)
+	routeBody := `{"fromMarkerId":"` + markerA.ID + `","toMarkerId":"` + markerB.ID + `","label":"A to B"}`
+	route := request(t, handler, http.MethodPost, "/api/map/routes", routeBody)
+	if route.Code != http.StatusCreated {
+		t.Fatalf("create route: %d %s", route.Code, route.Body.String())
+	}
+	mapResponse := request(t, handler, http.MethodGet, "/api/map", "")
+	if mapResponse.Code != http.StatusOK || !strings.Contains(mapResponse.Body.String(), `"backend":"memory"`) {
+		t.Fatalf("map response: %d %s", mapResponse.Code, mapResponse.Body.String())
+	}
+}
+
+func TestRoutesTimelineWritesThroughObsidianCapability(t *testing.T) {
+	provider, err := obsidian.New(obsidian.Config{VaultPath: t.TempDir()})
+	if err != nil {
+		t.Fatal(err)
+	}
+	web := fstest.MapFS{"index.html": {Data: []byte("<title>Amber Desk</title>")}}
+	handler := httpapi.New(casefile.NewStore(casefile.DemoCase()), connectors.NewRegistry(provider), web)
+
+	createdResponse := request(t, handler, http.MethodPost, "/api/timeline/events", `{"title":"Vault event","type":"identity","confidence":85}`)
+	if createdResponse.Code != http.StatusCreated {
+		t.Fatalf("create Obsidian event: %d %s", createdResponse.Code, createdResponse.Body.String())
+	}
+	var created connectors.TimelineEvent
+	decode(t, createdResponse, &created)
+	statusResponse := request(t, handler, http.MethodPatch, "/api/events/"+created.ID+"/status", `{"status":"verified"}`)
+	if statusResponse.Code != http.StatusOK {
+		t.Fatalf("update Obsidian event: %d %s", statusResponse.Code, statusResponse.Body.String())
+	}
+	timelineResponse := request(t, handler, http.MethodGet, "/api/timeline", "")
+	if timelineResponse.Code != http.StatusOK || !strings.Contains(timelineResponse.Body.String(), `"backend":"obsidian"`) || !strings.Contains(timelineResponse.Body.String(), `"status":"verified"`) {
+		t.Fatalf("Obsidian timeline: %d %s", timelineResponse.Code, timelineResponse.Body.String())
 	}
 }
 

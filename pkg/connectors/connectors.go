@@ -8,6 +8,7 @@ var (
 	ErrNotConfigured   = internal.ErrNotConfigured
 	ErrConnectorAbsent = internal.ErrConnectorAbsent
 	ErrConflict        = internal.ErrConflict
+	ErrEntityAbsent    = internal.ErrEntityAbsent
 )
 
 type Metadata = internal.Metadata
@@ -16,7 +17,15 @@ type Info = internal.Info
 type DossierRef = internal.DossierRef
 type Dossier = internal.Dossier
 type DossierWrite = internal.DossierWrite
+type TimelineNote = internal.TimelineNote
+type TimelineEvent = internal.TimelineEvent
+type TimelineSnapshot = internal.TimelineSnapshot
+type MapMarker = internal.MapMarker
+type MapRoute = internal.MapRoute
+type MapSnapshot = internal.MapSnapshot
 type Connector = internal.Connector
+type TimelineConnector = internal.TimelineConnector
+type MapConnector = internal.MapConnector
 type Registry = internal.Registry
 
 func NewRegistry(items ...Connector) *Registry {

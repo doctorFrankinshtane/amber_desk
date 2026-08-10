@@ -5,6 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <meta name="theme-color" content="#100c08">
   <title>Amber Desk / Dossier Timeline</title>
+  <link rel="stylesheet" href="vendor/leaflet/leaflet.css">
   <link rel="stylesheet" href="styles.css">
 </head>
 <body>
@@ -24,6 +25,7 @@
         <pre class="ascii-brand ascii-brand-mini" aria-hidden="true"> AMBER\
  DESK  \
 _______/</pre>
+        <pre id="ascii-planet" class="ascii-planet" aria-label="Rotating ASCII globe"></pre>
       </a>
       <div class="case-strip">
         <span class="label" data-i18n="case.label">CASE</span>
@@ -92,8 +94,14 @@ _______/</pre>
           <div><span class="section-code">02</span><h1 id="timeline-title" data-i18n="timeline.title">INVESTIGATION CHRONOLOGY</h1></div>
           <div class="timeline-stats"><span><b id="visible-count">00</b> <i data-i18n="timeline.events">EVENTS</i></span><span><b id="verified-count">00</b> <i data-i18n="common.verified">VERIFIED</i></span></div>
         </div>
+        <nav class="workspace-tabs" aria-label="Workspace views">
+          <button class="active" type="button" data-work-view="timeline-view" data-i18n="tabs.timeline">TIMELINE</button>
+          <button type="button" data-work-view="map-view" data-i18n="map.tab">WORLD MAP</button>
+          <span id="timeline-backend">MEMORY</span>
+        </nav>
+        <div id="timeline-view" class="work-view active">
         <div class="filterbar">
-          <div class="segmented" id="type-filters" aria-label="Фильтр по типу">
+          <div class="segmented" id="type-filters" aria-label="Timeline type filter">
             <button class="active" type="button" data-filter="all" data-i18n="common.all">ALL</button>
             <button type="button" data-filter="identity">ID</button>
             <button type="button" data-filter="infrastructure">NET</button>
@@ -101,17 +109,34 @@ _______/</pre>
             <button type="button" data-filter="social">SOC</button>
             <button type="button" data-filter="financial">FIN</button>
           </div>
+          <div class="timeline-tools"><button id="timeline-bootstrap" type="button" data-i18n="timeline.import">IMPORT DEMO</button><button id="timeline-add" type="button" title="Add event" aria-label="Add event">+</button>
           <label class="status-filter"><span data-i18n="common.status">STATUS</span>
             <select id="status-filter" disabled>
               <option value="all" data-i18n="common.all">ALL</option>
               <option value="verified" data-i18n="common.verified">VERIFIED</option>
               <option value="pending" data-i18n="common.pending">PENDING</option>
             </select>
-          </label>
+          </label></div>
         </div>
         <div class="timeline-list" id="timeline-list" tabindex="0"></div>
         <div class="empty-state" id="empty-state" hidden>
           <span>00</span><strong data-i18n="timeline.empty">NO MATCHING SIGNALS</strong><p data-i18n="timeline.emptyHint">Adjust filters or search query.</p>
+        </div>
+        </div>
+        <div id="map-view" class="work-view map-view" hidden>
+          <div class="map-toolbar">
+            <div class="segmented" id="map-modes" aria-label="Map mode"><button class="active" type="button" data-map-mode="select" data-i18n="map.select">SELECT</button><button type="button" data-map-mode="marker" data-i18n="map.addMarker">ADD MARKER</button><button type="button" data-map-mode="route" data-i18n="map.connect">CONNECT</button></div>
+            <span id="map-status" data-i18n="map.ready">READY</span>
+          </div>
+          <div class="map-workspace">
+            <div id="world-map" aria-label="Interactive investigation world map"></div>
+            <aside class="map-inspector" aria-labelledby="map-inspector-title">
+              <header><span class="section-code">GEO</span><h2 id="map-inspector-title" data-i18n="map.inspector">LOCATION INSPECTOR</h2></header>
+              <p id="map-hint" data-i18n="map.hint">Select a marker or choose Add Marker.</p>
+              <form id="marker-form" hidden><input id="marker-id" type="hidden"><label><span data-i18n="map.label">LABEL</span><input id="marker-label" maxlength="100" required></label><div class="coordinate-fields"><label><span data-i18n="map.latitude">LATITUDE</span><input id="marker-lat" type="number" min="-90" max="90" step="0.00001" required></label><label><span data-i18n="map.longitude">LONGITUDE</span><input id="marker-lng" type="number" min="-180" max="180" step="0.00001" required></label></div><label><span data-i18n="map.time">OBSERVED AT</span><input id="marker-time" type="datetime-local"></label><label><span data-i18n="map.description">DESCRIPTION</span><textarea id="marker-description" rows="4" maxlength="1000"></textarea></label><div class="map-form-actions"><button id="marker-delete" type="button" data-i18n="common.delete">DELETE</button><button type="submit" data-i18n="common.save">SAVE</button></div></form>
+              <section id="route-inspector" hidden><h3 data-i18n="map.route">ROUTE</h3><p id="route-label"></p><button id="route-delete" type="button" data-i18n="common.delete">DELETE</button></section>
+            </aside>
+          </div>
         </div>
       </section>
 
@@ -177,7 +202,21 @@ _______/</pre>
     </section>
   </dialog>
 
+  <dialog id="event-dialog" class="event-dialog">
+    <form id="event-form">
+      <header><div><span class="section-code">NEW</span><h2 data-i18n="timeline.newEvent">TIMELINE EVENT</h2></div><button type="button" id="event-close" aria-label="Close">X</button></header>
+      <label><span data-i18n="timeline.eventTitle">TITLE</span><input id="event-title" maxlength="140" required></label>
+      <div class="event-form-grid"><label><span data-i18n="timeline.type">TYPE</span><select id="event-type"><option value="identity">ID</option><option value="infrastructure">NET</option><option value="media">MEDIA</option><option value="social">SOC</option><option value="financial">FIN</option></select></label><label><span data-i18n="map.time">OBSERVED AT</span><input id="event-time" type="datetime-local" required></label></div>
+      <label><span data-i18n="timeline.summary">SUMMARY</span><textarea id="event-summary" rows="5" maxlength="2000"></textarea></label>
+      <div class="event-form-grid"><label><span data-i18n="evidence.source">SOURCE</span><input id="event-source" maxlength="120"></label><label><span data-i18n="common.confidence">CONFIDENCE</span><input id="event-confidence" type="number" min="0" max="100" value="50" required></label></div>
+      <footer><button type="button" id="event-cancel" data-i18n="common.close">CLOSE</button><button type="submit" data-i18n="common.add">ADD</button></footer>
+    </form>
+  </dialog>
+
+  <script src="vendor/leaflet/leaflet.js"></script>
   <script src="i18n.js"></script>
+  <script src="planet.js"></script>
+  <script src="map.js"></script>
   <script src="app.js"></script>
 </body>
 </html>

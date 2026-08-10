@@ -11,6 +11,7 @@ const state = {
   dossierDirty: false,
   connectorMessageKey: "connector.checking",
   connectorMessageError: false,
+  timelineBackend: "memory",
 };
 
 const commands = [
@@ -41,6 +42,9 @@ async function init() {
   updateClock();
   window.setInterval(updateClock, 1000);
   await Promise.all([loadCase(), loadIntegrations()]);
+  window.setInterval(() => {
+    if (!document.hidden && state.caseData && state.timelineBackend === "obsidian") loadTimeline(true);
+  }, 15000);
   if (parameters.get("connector") === "obsidian") await openDossierEditor();
 }
 
@@ -55,6 +59,9 @@ function cacheElements() {
     "language-select", "obsidian-open", "dossier-dialog", "dossier-close", "dossier-path",
     "dossier-sync-state", "connector-message", "dossier-refresh", "dossier-save",
     "dossier-content", "dossier-stats",
+    "timeline-backend", "timeline-bootstrap", "timeline-add", "event-dialog", "event-form",
+    "event-close", "event-cancel", "event-title", "event-type", "event-time", "event-summary",
+    "event-source", "event-confidence",
   ].forEach((id) => { elements[id] = document.getElementById(id); });
   elements.shell = document.querySelector(".app-shell");
   elements.evidenceTemplate = document.getElementById("evidence-template");
@@ -67,6 +74,12 @@ function bindEvents() {
   elements["dossier-refresh"].addEventListener("click", () => loadDossier(true));
   elements["dossier-save"].addEventListener("click", saveDossier);
   elements["dossier-content"].addEventListener("input", markDossierDirty);
+  document.querySelector(".workspace-tabs").addEventListener("click", switchWorkView);
+  elements["timeline-bootstrap"].addEventListener("click", bootstrapTimeline);
+  elements["timeline-add"].addEventListener("click", openEventDialog);
+  elements["event-close"].addEventListener("click", () => elements["event-dialog"].close());
+  elements["event-cancel"].addEventListener("click", () => elements["event-dialog"].close());
+  elements["event-form"].addEventListener("submit", createTimelineEvent);
   window.addEventListener("beforeunload", (event) => {
     if (!state.dossierDirty) return;
     event.preventDefault();
@@ -123,6 +136,7 @@ async function loadCase() {
     const response = await fetch("/api/case", { headers: { Accept: "application/json" } });
     if (!response.ok) throw new Error(`API ${response.status}`);
     state.caseData = await response.json();
+    await loadTimeline();
     state.selectedID = state.caseData.events[0]?.id || null;
     elements["api-state"].textContent = I18n.t("state.synced");
     enableControls();
@@ -132,6 +146,79 @@ async function loadCase() {
     elements["command-output"].textContent = `CONNECTION ERROR / ${error.message}`;
     elements["evidence-content"].innerHTML = '<div class="loading-block"><b>API UNAVAILABLE</b><span></span><small>START WITH: go run .</small></div>';
   }
+}
+
+async function loadTimeline(silent = false) {
+  try {
+    const snapshot = await request("/api/timeline", {});
+    state.caseData.events = snapshot.events || [];
+    state.timelineBackend = snapshot.backend || "memory";
+    elements["timeline-backend"].textContent = state.timelineBackend.toUpperCase();
+    elements["timeline-bootstrap"].hidden = state.timelineBackend !== "obsidian" || state.caseData.events.length > 0;
+    if (state.selectedID && !state.caseData.events.some((event) => event.id === state.selectedID)) state.selectedID = state.caseData.events[0]?.id || null;
+    if (silent) { renderTimeline(); renderEvidence(); }
+  } catch (error) {
+    if (!silent) throw error;
+  }
+}
+
+async function bootstrapTimeline() {
+  try {
+    const snapshot = await request("/api/timeline/bootstrap", { method: "POST", body: "{}" });
+    state.caseData.events = snapshot.events || [];
+    state.timelineBackend = snapshot.backend;
+    state.selectedID = state.caseData.events[0]?.id || null;
+    elements["timeline-bootstrap"].hidden = true;
+    renderTimeline();
+    renderEvidence();
+    commandMessage(`TIMELINE / ${snapshot.backend.toUpperCase()} / IMPORTED`);
+  } catch (error) { commandMessage(error.message, true); }
+}
+
+function openEventDialog() {
+  elements["event-form"].reset();
+  const now = new Date(Date.now() - new Date().getTimezoneOffset() * 60000);
+  elements["event-time"].value = now.toISOString().slice(0, 16);
+  elements["event-confidence"].value = 50;
+  elements["event-dialog"].showModal();
+  elements["event-title"].focus();
+}
+
+async function createTimelineEvent(event) {
+  event.preventDefault();
+  const occurredAt = new Date(elements["event-time"].value);
+  const payload = {
+    occurredAt: occurredAt.toISOString(),
+    time: occurredAt.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit", hour12: false }),
+    date: occurredAt.toLocaleDateString("en-GB", { day: "2-digit", month: "short" }).toUpperCase(),
+    type: elements["event-type"].value,
+    title: elements["event-title"].value.trim(),
+    summary: elements["event-summary"].value.trim(),
+    source: elements["event-source"].value.trim() || "ANALYST",
+    sourceUrl: "",
+    confidence: Number(elements["event-confidence"].value),
+    status: "pending",
+    fingerprint: "",
+    indicators: [],
+    notes: [],
+  };
+  try {
+    const created = await request("/api/timeline/events", { method: "POST", body: JSON.stringify(payload) });
+    state.caseData.events.unshift(created);
+    state.selectedID = created.id;
+    elements["event-dialog"].close();
+    renderTimeline();
+    renderEvidence();
+    commandMessage(`${created.id} / EVENT ADDED`);
+  } catch (error) { commandMessage(error.message, true); }
+}
+
+function switchWorkView(event) {
+  const button = event.target.closest("button[data-work-view]");
+  if (!button) return;
+  document.querySelectorAll("[data-work-view]").forEach((item) => item.classList.toggle("active", item === button));
+  document.querySelectorAll(".work-view").forEach((view) => { view.hidden = view.id !== button.dataset.workView; });
+  if (button.dataset.workView === "map-view") window.AmberMap.init();
 }
 
 async function loadIntegrations() {
@@ -306,7 +393,7 @@ function filteredEvents() {
   return state.caseData.events.filter((event) => {
     const typeMatch = state.type === "all" || event.type === state.type;
     const statusMatch = state.status === "all" || event.status === state.status;
-    const haystack = [event.id, event.title, event.summary, event.source, event.fingerprint, ...event.indicators].join(" ").toLowerCase();
+    const haystack = [event.id, event.title, event.summary, event.source, event.fingerprint, ...(event.indicators || [])].join(" ").toLowerCase();
     return typeMatch && statusMatch && (!state.query || haystack.includes(state.query));
   });
 }
@@ -322,7 +409,7 @@ function renderTimeline() {
     const time = node("time", {}, event.time);
     time.append(node("small", {}, event.date));
     const copy = node("span", { class: "event-copy" });
-    copy.append(node("strong", {}, event.title), node("p", {}, event.summary), node("small", {}, `${event.source.toUpperCase()} / ${event.id}`));
+    copy.append(node("strong", {}, event.title), node("p", {}, event.summary), node("small", {}, `${(event.source || "ANALYST").toUpperCase()} / ${event.id}`));
     const score = node("span", { class: "event-score" });
     score.append(node("b", {}, `${event.confidence}%`), node("span", { class: `status-dot ${event.status}` }, I18n.t(`status.${event.status}`)));
     button.append(time, node("span", { class: "timeline-marker" }), copy, score);
@@ -351,10 +438,12 @@ function renderEvidence() {
   fragment.querySelector(".meta-confidence").textContent = `${event.confidence}%`;
   fragment.querySelector(".evidence-meta .meter i").style.width = `${event.confidence}%`;
   fragment.querySelector(".meta-fingerprint").textContent = event.fingerprint;
-  fragment.querySelector(".indicator-list").replaceChildren(...event.indicators.map((value) => node("li", {}, value)));
-  fragment.querySelector(".note-count").textContent = pad(event.notes.length);
+  const indicators = event.indicators || [];
+  const eventNotes = event.notes || [];
+  fragment.querySelector(".indicator-list").replaceChildren(...indicators.map((value) => node("li", {}, value)));
+  fragment.querySelector(".note-count").textContent = pad(eventNotes.length);
   const notes = fragment.querySelector(".notes-list");
-  notes.replaceChildren(...(event.notes.length ? event.notes.map((note) => {
+  notes.replaceChildren(...(eventNotes.length ? eventNotes.map((note) => {
     const item = node("li", {}, note.text);
     item.append(node("time", {}, note.createdAt));
     return item;

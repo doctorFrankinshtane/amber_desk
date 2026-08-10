@@ -102,6 +102,18 @@ func (s *Store) AddNote(eventID string, note Note) (Event, error) {
 	return Event{}, ErrEventNotFound
 }
 
+func (s *Store) AddEvent(event Event) (Event, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	for _, existing := range s.caseData.Events {
+		if existing.ID == event.ID {
+			return Event{}, errors.New("event already exists")
+		}
+	}
+	s.caseData.Events = append([]Event{event}, s.caseData.Events...)
+	return cloneEvent(event), nil
+}
+
 func cloneCase(source Case) Case {
 	copy := source
 	copy.Tags = append([]string(nil), source.Tags...)

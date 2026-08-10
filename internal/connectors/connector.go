@@ -11,6 +11,7 @@ var (
 	ErrNotConfigured   = errors.New("connector is not configured")
 	ErrConnectorAbsent = errors.New("connector not found")
 	ErrConflict        = errors.New("dossier changed outside Amber Desk")
+	ErrEntityAbsent    = errors.New("connector entity not found")
 )
 
 type Metadata struct {
@@ -49,11 +50,85 @@ type DossierWrite struct {
 	ExpectedModifiedAt string
 }
 
+type TimelineNote struct {
+	Text      string `json:"text" yaml:"text"`
+	CreatedAt string `json:"createdAt" yaml:"created_at"`
+}
+
+type TimelineEvent struct {
+	ID          string         `json:"id" yaml:"id"`
+	OccurredAt  string         `json:"occurredAt,omitempty" yaml:"occurred_at,omitempty"`
+	Time        string         `json:"time" yaml:"time"`
+	Date        string         `json:"date" yaml:"date"`
+	Type        string         `json:"type" yaml:"type"`
+	Title       string         `json:"title" yaml:"title"`
+	Summary     string         `json:"summary" yaml:"summary"`
+	Source      string         `json:"source" yaml:"source"`
+	SourceURL   string         `json:"sourceUrl" yaml:"source_url"`
+	Confidence  int            `json:"confidence" yaml:"confidence"`
+	Status      string         `json:"status" yaml:"status"`
+	Fingerprint string         `json:"fingerprint" yaml:"fingerprint"`
+	Indicators  []string       `json:"indicators" yaml:"indicators"`
+	Notes       []TimelineNote `json:"notes" yaml:"notes"`
+	Latitude    *float64       `json:"latitude,omitempty" yaml:"latitude,omitempty"`
+	Longitude   *float64       `json:"longitude,omitempty" yaml:"longitude,omitempty"`
+}
+
+type TimelineSnapshot struct {
+	Events  []TimelineEvent `json:"events"`
+	Backend string          `json:"backend"`
+}
+
+type MapMarker struct {
+	ID          string   `json:"id" yaml:"id"`
+	Label       string   `json:"label" yaml:"label"`
+	Latitude    float64  `json:"latitude" yaml:"latitude"`
+	Longitude   float64  `json:"longitude" yaml:"longitude"`
+	OccurredAt  string   `json:"occurredAt" yaml:"occurred_at"`
+	Description string   `json:"description" yaml:"description"`
+	EventIDs    []string `json:"eventIds" yaml:"event_ids"`
+}
+
+type MapRoute struct {
+	ID           string `json:"id" yaml:"id"`
+	FromMarkerID string `json:"fromMarkerId" yaml:"from_marker_id"`
+	ToMarkerID   string `json:"toMarkerId" yaml:"to_marker_id"`
+	Label        string `json:"label" yaml:"label"`
+	StartedAt    string `json:"startedAt" yaml:"started_at"`
+	EndedAt      string `json:"endedAt" yaml:"ended_at"`
+	Notes        string `json:"notes" yaml:"notes"`
+}
+
+type MapSnapshot struct {
+	Markers []MapMarker `json:"markers"`
+	Routes  []MapRoute  `json:"routes"`
+	Backend string      `json:"backend"`
+}
+
 type Connector interface {
 	Metadata() Metadata
 	Status(context.Context) Status
 	ReadDossier(context.Context, DossierRef) (Dossier, error)
 	WriteDossier(context.Context, DossierRef, DossierWrite) (Dossier, error)
+}
+
+type TimelineConnector interface {
+	Connector
+	ListTimeline(context.Context, DossierRef) ([]TimelineEvent, error)
+	BootstrapTimeline(context.Context, DossierRef, []TimelineEvent) ([]TimelineEvent, error)
+	CreateTimelineEvent(context.Context, DossierRef, TimelineEvent) (TimelineEvent, error)
+	SetTimelineStatus(context.Context, DossierRef, string, string) (TimelineEvent, error)
+	AddTimelineNote(context.Context, DossierRef, string, TimelineNote) (TimelineEvent, error)
+}
+
+type MapConnector interface {
+	Connector
+	ListMap(context.Context, DossierRef) (MapSnapshot, error)
+	CreateMapMarker(context.Context, DossierRef, MapMarker) (MapMarker, error)
+	UpdateMapMarker(context.Context, DossierRef, MapMarker) (MapMarker, error)
+	DeleteMapMarker(context.Context, DossierRef, string) error
+	CreateMapRoute(context.Context, DossierRef, MapRoute) (MapRoute, error)
+	DeleteMapRoute(context.Context, DossierRef, string) error
 }
 
 type Registry struct {

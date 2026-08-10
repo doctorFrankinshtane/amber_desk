@@ -15,6 +15,8 @@ type Connector interface {
 }
 ```
 
+Storage families are optional capability interfaces. A provider may implement `TimelineConnector`, `MapConnector`, both, or neither. The generic HTTP layer selects a connected provider by the capabilities declared in metadata and falls back to memory when no provider is available.
+
 Register the implementation in `main.go` with `connectors.NewRegistry`. The HTTP layer discovers it through the registry; connector-specific filesystem or network logic must not enter `internal/httpapi` or the browser case model.
 
 ## Metadata
@@ -23,7 +25,7 @@ Every connector must expose:
 
 - A stable lowercase ASCII `id`
 - A human-readable name and description
-- Explicit capabilities such as `dossier.read` and `dossier.write`
+- Explicit capabilities such as `dossier.read`, `timeline.write`, and `map.read`
 - Whether required configuration is present
 - A health state: `connected`, `unconfigured`, `offline`, or `error`
 
@@ -60,6 +62,8 @@ GET /api/integrations
 GET /api/integrations/{id}/dossier
 PUT /api/integrations/{id}/dossier
 ```
+
+Timeline and map providers use the shared `/api/timeline` and `/api/map` route families. Browser code never imports an Obsidian-specific API.
 
 Do not add a connector-specific route when an existing capability route can represent the operation. New capability families should receive a generic route and shared request/response types first.
 
