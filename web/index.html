@@ -162,6 +162,21 @@ _______/</pre>
                 <label><span data-i18n="relations.details">DETAILS</span><textarea id="relation-node-details" rows="4" maxlength="4000"></textarea></label>
                 <label><span data-i18n="dossier.risk">RISK</span><select id="relation-node-risk"><option value="low">LOW</option><option value="medium">MEDIUM</option><option value="high">HIGH</option></select></label>
                 <label><span data-i18n="relations.sources">SOURCE EVENT IDS</span><input id="relation-node-sources" placeholder="EV-001, EV-002"></label>
+                <section id="relation-sherlock" class="relation-sherlock" hidden aria-labelledby="relation-sherlock-title">
+                  <header><div><h3 id="relation-sherlock-title">SHERLOCK</h3><span id="sherlock-runtime" data-i18n="sherlock.checking">CHECKING RUNTIME</span></div><button id="sherlock-open" type="button" data-i18n="sherlock.scan">SCAN</button></header>
+                  <div id="sherlock-launch" class="sherlock-launch" hidden>
+                    <label><span data-i18n="sherlock.username">USERNAME</span><input id="sherlock-username" maxlength="100" autocomplete="off" spellcheck="false" placeholder="handle"></label>
+                    <p id="sherlock-message" data-i18n="sherlock.hint">Check a username across public services.</p>
+                    <button id="sherlock-prepare" type="button" data-i18n="sherlock.start">START SCAN</button>
+                  </div>
+                  <div id="sherlock-console" class="sherlock-console" hidden>
+                    <div class="sherlock-stats"><span><i data-i18n="sherlock.checked">CHECKED</i> <b id="sherlock-checked">0</b></span><span><i data-i18n="sherlock.claimed">CLAIMED</i> <b id="sherlock-claimed">0</b></span><span><i data-i18n="sherlock.issues">ISSUES</i> <b id="sherlock-errors">0</b></span><span id="sherlock-state">QUEUED</span></div>
+                    <div class="sherlock-filters"><select id="sherlock-filter" aria-label="Sherlock result filter"><option value="claimed" data-i18n="sherlock.claimed">CLAIMED</option><option value="problems" data-i18n="sherlock.problems">PROBLEMS</option><option value="all" data-i18n="common.all">ALL</option></select><input id="sherlock-search" type="search" placeholder="FILTER SERVICES" data-i18n-placeholder="sherlock.filter" aria-label="Filter Sherlock services"></div>
+                    <p id="sherlock-log" class="sherlock-log" aria-live="polite">WAITING FOR RUNNER</p>
+                    <div id="sherlock-results" class="sherlock-results"></div>
+                    <div class="sherlock-actions"><button id="sherlock-cancel" type="button" data-i18n="sherlock.cancel">CANCEL</button><button id="sherlock-import" type="button" disabled data-i18n="sherlock.addSelected">ADD SELECTED</button></div>
+                  </div>
+                </section>
                 <section id="relation-attachments" class="relation-attachments" hidden aria-labelledby="relation-attachments-title">
                   <header><h3 id="relation-attachments-title" data-i18n="relations.attachments">DOCUMENTS</h3><span id="relation-attachment-count">0 / 20</span></header>
                   <input id="relation-attachment-input" class="visually-hidden" type="file" multiple>
@@ -308,6 +323,15 @@ _______/</pre>
       <label><span data-i18n="timeline.summary">SUMMARY</span><textarea id="event-summary" rows="5" maxlength="2000"></textarea></label>
       <div class="event-form-grid"><label><span data-i18n="evidence.source">SOURCE</span><input id="event-source" maxlength="120"></label><label><span data-i18n="common.confidence">CONFIDENCE</span><input id="event-confidence" type="number" min="0" max="100" value="50" required></label></div>
       <footer><button type="button" id="event-cancel" data-i18n="common.close">CLOSE</button><button type="submit" data-i18n="common.add">ADD</button></footer>
+    </form>
+  </dialog>
+
+  <dialog id="sherlock-confirm" class="sherlock-confirm">
+    <form method="dialog">
+      <header><span class="section-code">EXT</span><h2 data-i18n="sherlock.externalTitle">EXTERNAL SHERLOCK SCAN</h2></header>
+      <p data-i18n="sherlock.username">USERNAME</p><strong id="sherlock-confirm-username">--</strong>
+      <p id="sherlock-confirm-runtime" data-i18n="sherlock.externalWarning">Sherlock contacts supported third-party sites with this username. No dossier notes or files are sent.</p>
+      <footer><button id="sherlock-confirm-cancel" value="cancel" data-i18n="sherlock.cancel">CANCEL</button><button id="sherlock-confirm-start" type="button" data-i18n="sherlock.startExternal">START EXTERNAL SCAN</button></footer>
     </form>
   </dialog>
 

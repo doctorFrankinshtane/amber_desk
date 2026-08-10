@@ -281,6 +281,39 @@ button:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-
 .relation-attachment-item small { margin-top: 3px; color: var(--ink-dim); font-size: 6px; }
 .relation-attachment-item a, .relation-attachment-item button { display: grid; width: 28px; height: 28px; place-items: center; border: 1px solid var(--line); background: #070503; color: var(--ink-bright); font: 700 10px/1 monospace; text-decoration: none; }
 .relation-cover-action { color: var(--ink) !important; }.relation-cover-action:disabled { border-color: var(--ink); background: var(--ink); color: var(--base) !important; opacity: 1; }
+.relation-sherlock { margin: 10px 0; border: 1px solid #5b3b19; background: #090604; }
+.relation-sherlock > header { display: flex; align-items: stretch; justify-content: space-between; min-height: 39px; border-bottom: 1px solid #432b14; }
+.relation-sherlock > header > div { display: grid; align-content: center; gap: 3px; padding: 6px 9px; }
+.relation-sherlock h3 { margin: 0; color: var(--ink-bright); font-size: 9px; }
+.relation-sherlock header span { color: var(--ink-dim); font-size: 6px; }
+.relation-sherlock header button, .sherlock-launch > button { min-width: 68px; border: 0; border-left: 1px solid #5b3b19; background: transparent; color: var(--ink); font-size: 8px; }
+.relation-sherlock header button:hover, .sherlock-launch > button:hover { background: var(--ink); color: var(--base); }
+.sherlock-launch { padding: 9px; }
+.sherlock-launch p { margin: 0 0 8px; color: var(--ink-dim); font: 10px/1.4 Arial, sans-serif; }
+.sherlock-launch > button { width: 100%; min-height: 32px; border: 1px solid var(--ink); }
+.sherlock-console { min-width: 0; }
+.sherlock-stats { display: grid; grid-template-columns: repeat(3, 1fr); border-bottom: 1px solid #432b14; }
+.sherlock-stats span { padding: 6px 4px; border-right: 1px solid #432b14; color: var(--ink-dim); font-size: 6px; text-align: center; }
+.sherlock-stats span:nth-child(3) { border-right: 0; }.sherlock-stats span:last-child { grid-column: 1 / -1; border-top: 1px solid #432b14; color: var(--verified); }
+.sherlock-stats b { display: block; margin-top: 3px; color: var(--ink-bright); font-size: 11px; }
+.sherlock-stats i { font-style: normal; }
+.sherlock-filters { display: grid; grid-template-columns: 80px minmax(0, 1fr); gap: 5px; padding: 6px; border-bottom: 1px solid #432b14; }
+.sherlock-filters select, .sherlock-filters input { margin: 0; min-width: 0; }
+.sherlock-log { min-height: 28px; margin: 0; padding: 7px; border-bottom: 1px solid #432b14; color: var(--ink-dim); font-size: 6px; line-height: 1.45; overflow-wrap: anywhere; }
+.sherlock-results { max-height: 235px; overflow-y: auto; }
+.sherlock-result { display: grid; grid-template-columns: 20px minmax(0, 1fr) auto; align-items: center; gap: 4px; min-height: 38px; padding: 4px 6px; border-bottom: 1px dotted #432b14; }
+.sherlock-result input { width: 14px; margin: 0; padding: 0; accent-color: var(--ink); }
+.sherlock-result span { min-width: 0; }.sherlock-result b, .sherlock-result a { display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.sherlock-result b { color: var(--ink-bright); font-size: 8px; }.sherlock-result a { margin-top: 3px; color: var(--ink-dim); font-size: 6px; text-decoration: none; }.sherlock-result a:hover { color: var(--ink-bright); text-decoration: underline; }
+.sherlock-result em { color: var(--verified); font-size: 6px; font-style: normal; }.sherlock-result.problem em { color: var(--alert); }
+.sherlock-actions { display: grid; grid-template-columns: 1fr 1fr; }
+.sherlock-actions button { min-height: 34px; border: 0; border-right: 1px solid #432b14; background: transparent; font-size: 7px; }.sherlock-actions button:last-child { border: 0; background: var(--ink); color: var(--base); }
+.sherlock-actions button:disabled { opacity: .35; }
+.sherlock-confirm { width: min(430px, calc(100vw - 20px)); padding: 0; border: 1px solid var(--alert); border-radius: 0; background: #0a0705; color: var(--ink-bright); }
+.sherlock-confirm::backdrop { background: #050302e8; }
+.sherlock-confirm form > header { display: flex; align-items: center; gap: 8px; min-height: 44px; padding: 0 11px; border-bottom: 1px solid var(--line); }.sherlock-confirm h2 { margin: 0; font-size: 10px; }
+.sherlock-confirm form > p, .sherlock-confirm form > strong { display: block; margin: 0; padding: 10px 12px 0; }.sherlock-confirm form > p { color: var(--ink-dim); font: 10px/1.5 Arial, sans-serif; }.sherlock-confirm form > strong { color: var(--alert); font: 16px monospace; overflow-wrap: anywhere; }
+.sherlock-confirm footer { display: grid; grid-template-columns: 1fr 1fr; margin-top: 13px; border-top: 1px solid var(--line); }.sherlock-confirm footer button { min-height: 40px; border: 0; border-right: 1px solid var(--line); background: transparent; }.sherlock-confirm footer button:last-child { border: 0; background: var(--alert); color: #090604; }
 
 .case-wizard { width: min(760px, calc(100vw - 24px)); height: min(690px, calc(100svh - 28px)); max-width: none; max-height: none; padding: 0; border: 1px solid var(--ink); border-radius: 0; background: #0a0705; color: var(--ink); }
 .case-wizard::backdrop { background: #050302df; backdrop-filter: blur(2px); }

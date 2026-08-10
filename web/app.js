@@ -26,6 +26,7 @@ const commands = [
   { name: "FILTER MEDIA", descriptionKey: "command.filterMedia", run: () => setTypeFilter("media") },
   { name: "FILTER ALL", descriptionKey: "command.filterAll", run: () => setTypeFilter("all") },
   { name: "CLEAR", descriptionKey: "command.clear", run: clearFilters },
+  { name: "SHERLOCK", descriptionKey: "command.sherlock", run: () => openSherlockCommand("") },
 ];
 
 const elements = {};
@@ -715,8 +716,11 @@ function setMobileView(view) {
 }
 
 function runCommand(raw) {
-  const input = raw.trim().toUpperCase();
+  const original = raw.trim();
+  const input = original.toUpperCase();
   if (!input) return;
+  const sherlockMatch = original.match(/^SHERLOCK(?:\s+([A-Za-z0-9._-]{1,100}))?$/i);
+  if (sherlockMatch) { openSherlockCommand(sherlockMatch[1] || ""); commandMessage(`SHERLOCK${sherlockMatch[1] ? ` @${sherlockMatch[1]}` : ""} / READY`); return; }
   const selectMatch = input.match(/^SELECT\s+(EV-\d+)$/);
   if (selectMatch) {
     const found = state.caseData.events.some((event) => event.id === selectMatch[1]);
@@ -728,6 +732,12 @@ function runCommand(raw) {
   if (!command) return commandMessage(`UNKNOWN COMMAND / ${input}`, true);
   command.run();
   if (input !== "HELP") commandMessage(`${input} / OK`);
+}
+
+async function openSherlockCommand(username) {
+  document.querySelector('[data-work-view="relations-view"]')?.click();
+  await window.AmberRelations.init();
+  await window.AmberRelations.openSherlock(username);
 }
 
 function openPalette() {

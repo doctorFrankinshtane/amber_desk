@@ -1,7 +1,7 @@
 "use strict";
 
 window.AmberRelations = (() => {
-  const state = { initialized: false, loaded: false, snapshot: { nodes: [], edges: [], backend: "memory" }, cy: null, mode: "select", linkSource: null, draftPosition: null, attachments: new Map(), attachmentLayer: null, coverLayer: null };
+  const state = { initialized: false, loaded: false, snapshot: { nodes: [], edges: [], backend: "memory" }, cy: null, mode: "select", linkSource: null, draftPosition: null, attachments: new Map(), attachmentLayer: null, coverLayer: null, selectedNodeID: "", sherlock: { status: null, scan: null, source: null, selected: new Set(), stream: null } };
   const el = {};
 
   async function init() {
@@ -18,7 +18,7 @@ window.AmberRelations = (() => {
   }
 
   function cache() {
-    ["relations-board", "relations-backend", "relation-select", "relation-add-node", "relation-connect", "relation-layout", "relation-search", "relations-empty", "relation-node-form", "relation-node-id", "relation-node-type", "relation-node-title", "relation-node-subtitle", "relation-node-details", "relation-node-risk", "relation-node-sources", "relation-node-delete", "relation-attachments", "relation-attachment-input", "relation-attachment-add", "relation-photo-input", "relation-photo-add", "relation-attachment-status", "relation-attachment-list", "relation-attachment-count", "relation-edge-form", "relation-edge-id", "relation-edge-source", "relation-edge-target", "relation-edge-from", "relation-edge-to", "relation-edge-label", "relation-edge-confidence", "relation-edge-confidence-value", "relation-edge-kind", "relation-edge-sources", "relation-edge-note", "relation-edge-delete"].forEach((id) => { el[id] = document.getElementById(id); });
+    ["relations-board", "relations-backend", "relation-select", "relation-add-node", "relation-connect", "relation-layout", "relation-search", "relations-empty", "relation-node-form", "relation-node-id", "relation-node-type", "relation-node-title", "relation-node-subtitle", "relation-node-details", "relation-node-risk", "relation-node-sources", "relation-node-delete", "relation-attachments", "relation-attachment-input", "relation-attachment-add", "relation-photo-input", "relation-photo-add", "relation-attachment-status", "relation-attachment-list", "relation-attachment-count", "relation-edge-form", "relation-edge-id", "relation-edge-source", "relation-edge-target", "relation-edge-from", "relation-edge-to", "relation-edge-label", "relation-edge-confidence", "relation-edge-confidence-value", "relation-edge-kind", "relation-edge-sources", "relation-edge-note", "relation-edge-delete", "relation-sherlock", "sherlock-runtime", "sherlock-open", "sherlock-launch", "sherlock-username", "sherlock-message", "sherlock-prepare", "sherlock-console", "sherlock-checked", "sherlock-claimed", "sherlock-errors", "sherlock-state", "sherlock-filter", "sherlock-search", "sherlock-log", "sherlock-results", "sherlock-cancel", "sherlock-import", "sherlock-confirm", "sherlock-confirm-username", "sherlock-confirm-runtime", "sherlock-confirm-start"].forEach((id) => { el[id] = document.getElementById(id); });
   }
 
   function bind() {
@@ -35,6 +35,14 @@ window.AmberRelations = (() => {
     el["relation-attachment-input"].addEventListener("change", uploadAttachments);
     el["relation-photo-input"].addEventListener("change", uploadAttachments);
     el["relation-edge-delete"].addEventListener("click", deleteEdge);
+    el["sherlock-open"].addEventListener("click", toggleSherlockPanel);
+    el["sherlock-prepare"].addEventListener("click", prepareSherlockScan);
+    el["sherlock-confirm-start"].addEventListener("click", startSherlockScan);
+    el["sherlock-cancel"].addEventListener("click", cancelSherlockScan);
+    el["sherlock-import"].addEventListener("click", importSherlockResults);
+    el["sherlock-filter"].addEventListener("change", renderSherlockResults);
+    el["sherlock-search"].addEventListener("input", renderSherlockResults);
+    el["sherlock-results"].addEventListener("change", toggleSherlockResult);
     el["relation-edge-confidence"].addEventListener("input", () => { el["relation-edge-confidence-value"].textContent = `${el["relation-edge-confidence"].value}%`; });
     document.addEventListener("amber:case-created", (event) => { state.snapshot = event.detail.relationships; state.loaded = true; if (state.initialized) build(); });
   }
@@ -111,17 +119,21 @@ window.AmberRelations = (() => {
     el["relation-node-title"].value = node.title; el["relation-node-subtitle"].value = node.subtitle || ""; el["relation-node-details"].value = node.details || ""; el["relation-node-risk"].value = node.risk || "low"; el["relation-node-sources"].value = (node.sourceIds || []).join(", ");
     el["relation-node-delete"].hidden = draft || node.primary;
     el["relation-attachments"].hidden = draft;
+    state.selectedNodeID = node.id;
+    el["relation-sherlock"].hidden = draft;
+    if (!draft && state.sherlock.source?.id !== node.id) resetSherlockConsole(node);
     if (draft) { el["relation-attachment-list"].replaceChildren(); el["relation-attachment-status"].textContent = ""; }
     else loadAttachments(node.id);
   }
 
   function showEdge(edge, draft = false) {
+    state.selectedNodeID = "";
     el["relations-empty"].hidden = true; el["relation-node-form"].hidden = true; el["relation-edge-form"].hidden = false;
     el["relation-edge-id"].value = edge.id; el["relation-edge-source"].value = edge.sourceId; el["relation-edge-target"].value = edge.targetId;
     el["relation-edge-from"].textContent = nodeTitle(edge.sourceId); el["relation-edge-to"].textContent = nodeTitle(edge.targetId); el["relation-edge-label"].value = edge.label || ""; el["relation-edge-confidence"].value = edge.confidence; el["relation-edge-confidence-value"].textContent = `${edge.confidence}%`; el["relation-edge-kind"].value = edge.kind || "standard"; el["relation-edge-sources"].value = (edge.sourceIds || []).join(", "); el["relation-edge-note"].value = edge.note || ""; el["relation-edge-delete"].hidden = draft;
   }
 
-  function showEmpty() { el["relations-empty"].hidden = false; el["relation-node-form"].hidden = true; el["relation-edge-form"].hidden = true; }
+  function showEmpty() { state.selectedNodeID = ""; el["relations-empty"].hidden = false; el["relation-node-form"].hidden = true; el["relation-edge-form"].hidden = true; }
   function boardMessage(text) { showEmpty(); el["relations-empty"].querySelector("p").textContent = text; }
 
   async function saveNode(event) {
@@ -286,6 +298,138 @@ window.AmberRelations = (() => {
     state.cy.nodes().forEach((node) => { const match = `${node.data("title")} ${node.data("subtitle")} ${node.data("type")}`.toLowerCase().includes(query); if (!match) { node.addClass("faded"); node.connectedEdges().addClass("faded"); } });
   }
 
+  function resetSherlockConsole(node) {
+    state.sherlock.source = node;
+    state.sherlock.scan = null;
+    state.sherlock.selected.clear();
+    el["sherlock-launch"].hidden = true;
+    el["sherlock-console"].hidden = true;
+    el["sherlock-open"].textContent = I18n.t("sherlock.scan");
+    el["sherlock-runtime"].textContent = state.sherlock.status?.ready ? `READY / ${state.sherlock.status.version}` : "RUNTIME NOT CHECKED";
+    el["sherlock-username"].value = usernameFromNode(node);
+    el["sherlock-results"].replaceChildren();
+  }
+
+  async function openSherlockConsole(prefill = "") {
+    const source = state.snapshot.nodes.find((node) => node.id === state.selectedNodeID) || state.snapshot.nodes.find((node) => node.primary);
+    if (!source) { boardMessage("SHERLOCK / SELECT A SOURCE CARD"); return; }
+    if (state.selectedNodeID !== source.id) { state.cy?.getElementById(source.id).select(); showNode(source); }
+    if (!state.sherlock.status) {
+      el["sherlock-runtime"].textContent = "CHECKING RUNTIME";
+      try {
+        const response = await fetch("/api/tools/sherlock/status", { headers: { Accept: "application/json" } });
+        state.sherlock.status = await response.json();
+      } catch { state.sherlock.status = { ready: false, message: "Sherlock status is unavailable" }; }
+    }
+    el["sherlock-runtime"].textContent = state.sherlock.status.ready ? `READY / ${state.sherlock.status.version}` : "UNAVAILABLE";
+    el["sherlock-message"].textContent = state.sherlock.status.ready ? I18n.t("sherlock.hint") : (state.sherlock.status.message || I18n.t("sherlock.hint"));
+    if (prefill) el["sherlock-username"].value = prefill;
+    el["sherlock-open"].textContent = I18n.t("common.close");
+    el["sherlock-launch"].hidden = Boolean(state.sherlock.scan);
+    el["sherlock-console"].hidden = !state.sherlock.scan;
+    if (!state.sherlock.scan) el["sherlock-username"].focus();
+  }
+
+  function toggleSherlockPanel() {
+    if (!el["sherlock-launch"].hidden || !el["sherlock-console"].hidden) {
+      el["sherlock-launch"].hidden = true; el["sherlock-console"].hidden = true; el["sherlock-open"].textContent = I18n.t("sherlock.scan"); return;
+    }
+    openSherlockConsole("");
+  }
+
+  function prepareSherlockScan() {
+    const username = el["sherlock-username"].value.trim();
+    if (!/^[A-Za-z0-9._-]{1,100}$/.test(username)) { el["sherlock-message"].textContent = "Use 1-100 letters, digits, dots, underscores, or hyphens."; return; }
+    if (!state.sherlock.status?.ready) { el["sherlock-message"].textContent = state.sherlock.status?.message || "Sherlock runtime is unavailable."; return; }
+    el["sherlock-confirm-username"].textContent = username;
+    el["sherlock-confirm-runtime"].textContent = I18n.t("sherlock.externalRuntime", { version: state.sherlock.status.version });
+    el["sherlock-confirm"].showModal();
+  }
+
+  async function startSherlockScan() {
+    const source = state.sherlock.source, username = el["sherlock-username"].value.trim();
+    if (!source) return;
+    el["sherlock-confirm-start"].disabled = true;
+    try {
+      const caseData = await fetchJSON("/api/case");
+      const scan = await fetchJSON("/api/tools/sherlock/scans", { method: "POST", body: JSON.stringify({ caseId: caseData.id, sourceNodeId: source.id, username, externalTrafficConfirmed: true }) });
+      state.sherlock.scan = scan; state.sherlock.selected.clear();
+      el["sherlock-confirm"].close(); el["sherlock-launch"].hidden = true; el["sherlock-console"].hidden = false;
+      updateSherlockScan(scan); connectSherlockStream(scan.id);
+    } catch (error) { el["sherlock-message"].textContent = `SCAN ERROR / ${error.message}`; el["sherlock-confirm"].close(); }
+    finally { el["sherlock-confirm-start"].disabled = false; }
+  }
+
+  function connectSherlockStream(scanID) {
+    state.sherlock.stream?.close();
+    const stream = new EventSource(`/api/tools/sherlock/scans/${encodeURIComponent(scanID)}/events`); state.sherlock.stream = stream;
+    stream.addEventListener("snapshot", (event) => updateSherlockScan(JSON.parse(event.data)));
+    ["progress", "log", "completed", "failed", "cancelled"].forEach((type) => stream.addEventListener(type, (event) => {
+      const payload = JSON.parse(event.data); if (payload.message) el["sherlock-log"].textContent = payload.message;
+      if (payload.checked !== undefined) { el["sherlock-checked"].textContent = payload.checked; el["sherlock-claimed"].textContent = payload.claimed || 0; el["sherlock-errors"].textContent = payload.errors || 0; }
+      if (["completed", "failed", "cancelled"].includes(type)) stream.close();
+    }));
+    stream.onerror = () => { if (["queued", "running"].includes(state.sherlock.scan?.state)) el["sherlock-log"].textContent = "STREAM INTERRUPTED / RECONNECTING"; };
+  }
+
+  function updateSherlockScan(scan) {
+    state.sherlock.scan = scan;
+    el["sherlock-checked"].textContent = scan.checked || 0; el["sherlock-claimed"].textContent = scan.claimed || 0; el["sherlock-errors"].textContent = scan.errors || 0;
+    el["sherlock-state"].textContent = scan.state.toUpperCase();
+    el["sherlock-log"].textContent = scan.error || (scan.state === "completed" ? `${scan.claimed} CANDIDATES / MANUAL REVIEW REQUIRED` : `SCANNING @${scan.username}`);
+    el["sherlock-cancel"].disabled = !["queued", "running"].includes(scan.state);
+    renderSherlockResults();
+  }
+
+  function renderSherlockResults() {
+    const scan = state.sherlock.scan; if (!scan) return;
+    const filter = el["sherlock-filter"].value, query = el["sherlock-search"].value.trim().toLowerCase();
+    const visible = (scan.results || []).filter((result) => {
+      if (filter === "claimed" && result.status !== "claimed") return false;
+      if (filter === "problems" && ["claimed", "available"].includes(result.status)) return false;
+      return !query || `${result.site} ${result.profileUrl}`.toLowerCase().includes(query);
+    });
+    el["sherlock-results"].replaceChildren(...visible.map((result) => {
+      const row = document.createElement("div"); row.className = `sherlock-result${["claimed", "available"].includes(result.status) ? "" : " problem"}`;
+      const checkbox = document.createElement("input"); checkbox.type = "checkbox"; checkbox.dataset.resultId = result.id; checkbox.disabled = result.status !== "claimed"; checkbox.checked = state.sherlock.selected.has(result.id);
+      const copy = document.createElement("span"), name = document.createElement("b"), link = document.createElement("a"), status = document.createElement("em");
+      name.textContent = result.site; link.textContent = result.profileUrl; link.title = result.profileUrl; link.href = result.profileUrl; link.target = "_blank"; link.rel = "noreferrer noopener"; status.textContent = result.status.toUpperCase(); copy.append(name, link); row.append(checkbox, copy, status); return row;
+    }));
+    updateSherlockImportButton();
+  }
+
+  function toggleSherlockResult(event) {
+    const input = event.target.closest("input[data-result-id]"); if (!input) return;
+    if (input.checked) state.sherlock.selected.add(input.dataset.resultId); else state.sherlock.selected.delete(input.dataset.resultId);
+    updateSherlockImportButton();
+  }
+
+  function updateSherlockImportButton() { el["sherlock-import"].disabled = state.sherlock.scan?.state !== "completed" || state.sherlock.selected.size === 0; el["sherlock-import"].textContent = state.sherlock.selected.size ? `${I18n.t("sherlock.addSelected")} / ${state.sherlock.selected.size}` : I18n.t("sherlock.addSelected"); }
+
+  async function cancelSherlockScan() {
+    if (!state.sherlock.scan) return;
+    try { await fetchJSON(`/api/tools/sherlock/scans/${encodeURIComponent(state.sherlock.scan.id)}`, { method: "DELETE", body: "{}" }); el["sherlock-log"].textContent = "CANCELLATION REQUESTED"; }
+    catch (error) { el["sherlock-log"].textContent = `CANCEL ERROR / ${error.message}`; }
+  }
+
+  async function importSherlockResults() {
+    const scan = state.sherlock.scan; if (!scan || !state.sherlock.selected.size) return;
+    el["sherlock-import"].disabled = true; el["sherlock-log"].textContent = "WRITING TO DOSSIER / OBSIDIAN";
+    try {
+      const caseData = await fetchJSON("/api/case");
+      const imported = await fetchJSON(`/api/tools/sherlock/scans/${encodeURIComponent(scan.id)}/import`, { method: "POST", body: JSON.stringify({ caseId: caseData.id, resultIds: [...state.sherlock.selected] }) });
+      el["sherlock-log"].textContent = `IMPORTED ${imported.selected} PROFILES / REPORT ATTACHED`;
+      state.sherlock.selected.clear(); await load(); document.dispatchEvent(new CustomEvent("amber:timeline-changed", { detail: imported }));
+    } catch (error) { el["sherlock-log"].textContent = `IMPORT ERROR / ${error.message}`; updateSherlockImportButton(); }
+  }
+
+  async function fetchJSON(url, options = {}) {
+    const response = await fetch(url, { ...options, headers: { Accept: "application/json", "Content-Type": "application/json", ...(options.headers || {}) } });
+    const payload = await response.json(); if (!response.ok) throw new Error(payload.error || `API ${response.status}`); return payload;
+  }
+
+  function usernameFromNode(node) { const value = (node.title || "").replace(/^@/, "").split(/\s|\//)[0]; return /^[A-Za-z0-9._-]{1,100}$/.test(value) ? value : ""; }
+
   async function api(url, options, noContent = false) {
     try { const headers = { Accept: "application/json" }; if (!(options?.body instanceof FormData)) headers["Content-Type"] = "application/json"; const response = await fetch(url, { ...options, headers }); if (!response.ok) { const payload = await response.json(); throw new Error(payload.error || `API ${response.status}`); } return noContent ? true : response.json(); }
     catch (error) { boardMessage(`BOARD ERROR / ${error.message}`); return null; }
@@ -298,5 +442,5 @@ window.AmberRelations = (() => {
   function isImageAttachment(item) { return ["image/jpeg", "image/png", "image/webp", "image/gif"].includes(item.mediaType); }
   function attachmentURL(nodeID, attachmentID, inline = false) { return `/api/relationships/nodes/${encodeURIComponent(nodeID)}/attachments/${encodeURIComponent(attachmentID)}${inline ? "?inline=1" : ""}`; }
   document.addEventListener("amber:case-switched", refresh);
-  return { init, refresh, get loaded() { return state.loaded; } };
+  return { init, refresh, openSherlock: openSherlockConsole, get loaded() { return state.loaded; } };
 })();

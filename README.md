@@ -36,6 +36,7 @@ Extensible browser workspace for OSINT investigations. Amber Desk combines a den
 - Detective-style relationship board with draggable clue cards and sourced threads
 - Local relationship-card attachments with hashes, downloads, and at-a-glance document stacks
 - Local photo covers for relationship cards with automatic first-image selection
+- Native Sherlock username scans with manual relationship import
 - Multi-dossier picker with Obsidian-backed switching and restart recovery
 - Vault-local trash for complete cases and individual chronology records
 
@@ -104,6 +105,18 @@ The graph engine is bundled locally. Card positions and threads are stored throu
 
 ![Amber Desk relationship board](docs/assets/amber-relations.png)
 
+### Sherlock
+
+Sherlock is an optional local process integration inside the selected relationship card; it does not add another workspace tab. Install the pinned runtime once:
+
+```powershell
+.\tools\sherlock\setup.ps1
+```
+
+On Linux or macOS use `./tools/sherlock/setup.sh`. Amber Desk detects `.tools/sherlock` automatically, or `SHERLOCK_PYTHON` can point to another absolute Python executable containing the supported version.
+
+Choose **Sherlock / Scan** in a subject or account card, or enter `SHERLOCK <username>` in the command bar. Every run requires confirmation because Sherlock sends the entered username to supported third-party sites. Dossier notes, graph data, and attachments remain local. Results are candidates, not verified identities: select claimed profiles manually before import. Amber Desk then creates low-confidence account nodes and `FOUND ON` threads, writes one pending timeline event, and attaches the complete JSON report to the source card. With Obsidian connected, all imported records use the existing vault layout.
+
 ## Investigation Map
 
 Open **World Map** above the chronology. Use **Add Marker** and click the map to record a location. Markers can be selected, edited, or dragged. Use **Connect**, then select two markers to create a movement route.
@@ -143,6 +156,8 @@ The bundled snapshot comes from OSINT Framework commit `a744e613d7ded0aaa854896f
 | `MAP_TILE_EXT` | `png` | Tile file extension: `png`, `jpg`, `jpeg`, or `webp` |
 | `MAP_TILE_MIN_ZOOM` | `0` | Lowest zoom available in the local pack |
 | `MAP_TILE_MAX_ZOOM` | `18` | Highest zoom available in the local pack |
+| `SHERLOCK_PYTHON` | project-local `.tools/sherlock` | Absolute path to the supported Sherlock Python runtime |
+| `ALLOW_REMOTE_TOOL_RUNS` | `0` | Permit process-backed tools when Amber Desk is accessed beyond localhost |
 
 See [.env.example](.env.example) for a local template.
 
@@ -159,6 +174,12 @@ See [.env.example](.env.example) for a local template.
 - `PATCH /api/events/{id}/status`
 - `POST /api/events/{id}/notes`
 - `DELETE /api/events/{id}`
+- `GET /api/tools/sherlock/status`
+- `POST /api/tools/sherlock/scans`
+- `GET /api/tools/sherlock/scans/{id}`
+- `GET /api/tools/sherlock/scans/{id}/events`
+- `DELETE /api/tools/sherlock/scans/{id}`
+- `POST /api/tools/sherlock/scans/{id}/import`
 - `GET /api/map`
 - `POST /api/map/markers`
 - `PUT /api/map/markers/{id}`

@@ -11,13 +11,16 @@ import (
 	"log"
 	"net/http"
 	"os"
+	"os/signal"
 	"strconv"
+	"syscall"
 	"time"
 
 	"amberdesk/internal/casefile"
 	catalogprovider "amberdesk/internal/catalog"
 	"amberdesk/internal/connectors/obsidian"
 	"amberdesk/internal/httpapi"
+	"amberdesk/internal/sherlock"
 	"amberdesk/pkg/catalog"
 	"amberdesk/pkg/connectors"
 )
@@ -75,7 +78,9 @@ func main() {
 	}
 	store := casefile.NewStore(initialCase)
 	registry := connectors.NewRegistry(obsidianConnector)
-	handler := httpapi.NewWithConfig(store, registry, webRoot, httpapi.Config{Catalog: catalogProvider, MapTiles: httpapi.MapTileConfig{
+	toolContext, stopTools := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
+	defer stopTools()
+	handler := httpapi.NewWithConfig(store, registry, webRoot, httpapi.Config{Catalog: catalogProvider, SherlockRunner: sherlock.NewCLIRunner(os.Getenv("SHERLOCK_PYTHON")), AllowRemoteToolRuns: os.Getenv("ALLOW_REMOTE_TOOL_RUNS") == "1", ToolContext: toolContext, MapTiles: httpapi.MapTileConfig{
 		Directory: os.Getenv("MAP_TILE_DIR"),
 		Extension: envOr("MAP_TILE_EXT", "png"),
 		MinZoom:   envInt("MAP_TILE_MIN_ZOOM", 0),
@@ -89,6 +94,12 @@ func main() {
 		ReadHeaderTimeout: 5 * time.Second,
 		IdleTimeout:       60 * time.Second,
 	}
+	go func() {
+		<-toolContext.Done()
+		shutdownContext, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+		defer cancel()
+		_ = server.Shutdown(shutdownContext)
+	}()
 
 	fmt.Printf("Amber Desk listening on http://localhost%s\n", addr)
 	if err := server.ListenAndServe(); err != nil && err != http.ErrServerClosed {

@@ -38,3 +38,12 @@ Natural Earth requests attribution but does not require it. Amber Desk includes 
 - Vendored dataset: `web/data/osint-framework.json`
 
 Catalog data is derived from OSINT Framework by Justin Nordine. The complete upstream license and copyright notice is included at `docs/licenses/OSINT-FRAMEWORK-LICENSE`.
+
+## Sherlock
+
+- Version: 0.16.0
+- Project: https://github.com/sherlock-project/sherlock
+- License: MIT
+- Distribution: optional project-local Python environment created by `tools/sherlock/setup.ps1` or `setup.sh`
+
+Sherlock is not vendored into Amber Desk. Its package and dependencies are installed only when an operator runs the setup script. A scan contacts supported third-party sites with the submitted username; Amber Desk requires explicit confirmation for each run.

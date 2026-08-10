@@ -1,6 +1,7 @@
 package httpapi
 
 import (
+	"context"
 	"encoding/json"
 	"errors"
 	"io"
@@ -12,25 +13,28 @@ import (
 
 	"amberdesk/internal/casefile"
 	"amberdesk/internal/connectors"
+	"amberdesk/internal/sherlock"
 	"amberdesk/pkg/catalog"
 )
 
 type Handler struct {
-	store        *casefile.Store
-	connectors   *connectors.Registry
-	web          http.Handler
-	mapMu        sync.Mutex
-	markers      []connectors.MapMarker
-	routes       []connectors.MapRoute
-	relationMu   sync.Mutex
-	coverMu      sync.Mutex
-	caseMu       sync.Mutex
-	nodes        []connectors.RelationshipNode
-	edges        []connectors.RelationshipEdge
-	attachmentMu sync.Mutex
-	attachments  map[string]map[string]memoryAttachment
-	mapTiles     MapTileConfig
-	catalog      catalog.Provider
+	store            *casefile.Store
+	connectors       *connectors.Registry
+	web              http.Handler
+	mapMu            sync.Mutex
+	markers          []connectors.MapMarker
+	routes           []connectors.MapRoute
+	relationMu       sync.Mutex
+	coverMu          sync.Mutex
+	caseMu           sync.Mutex
+	nodes            []connectors.RelationshipNode
+	edges            []connectors.RelationshipEdge
+	attachmentMu     sync.Mutex
+	attachments      map[string]map[string]memoryAttachment
+	mapTiles         MapTileConfig
+	catalog          catalog.Provider
+	sherlock         *sherlock.Manager
+	allowRemoteTools bool
 }
 
 func New(store *casefile.Store, registry *connectors.Registry, webFiles fs.FS) http.Handler {
@@ -38,12 +42,19 @@ func New(store *casefile.Store, registry *connectors.Registry, webFiles fs.FS) h
 }
 
 type Config struct {
-	MapTiles MapTileConfig
-	Catalog  catalog.Provider
+	MapTiles            MapTileConfig
+	Catalog             catalog.Provider
+	SherlockRunner      sherlock.Runner
+	AllowRemoteToolRuns bool
+	ToolContext         context.Context
 }
 
 func NewWithConfig(store *casefile.Store, registry *connectors.Registry, webFiles fs.FS, config Config) http.Handler {
-	h := &Handler{store: store, connectors: registry, web: http.FileServer(http.FS(webFiles)), mapTiles: config.MapTiles.normalized(), catalog: config.Catalog, attachments: make(map[string]map[string]memoryAttachment)}
+	toolContext := config.ToolContext
+	if toolContext == nil {
+		toolContext = context.Background()
+	}
+	h := &Handler{store: store, connectors: registry, web: http.FileServer(http.FS(webFiles)), mapTiles: config.MapTiles.normalized(), catalog: config.Catalog, attachments: make(map[string]map[string]memoryAttachment), sherlock: sherlock.NewManager(toolContext, config.SherlockRunner), allowRemoteTools: config.AllowRemoteToolRuns}
 	mux := http.NewServeMux()
 	mux.HandleFunc("GET /api/health", h.health)
 	mux.HandleFunc("GET /api/case", h.getCase)
@@ -78,6 +89,12 @@ func NewWithConfig(store *casefile.Store, registry *connectors.Registry, webFile
 	mux.HandleFunc("POST /api/relationships/edges", h.createRelationshipEdge)
 	mux.HandleFunc("PUT /api/relationships/edges/{id}", h.updateRelationshipEdge)
 	mux.HandleFunc("DELETE /api/relationships/edges/{id}", h.deleteRelationshipEdge)
+	mux.HandleFunc("GET /api/tools/sherlock/status", h.sherlockStatus)
+	mux.HandleFunc("POST /api/tools/sherlock/scans", h.startSherlockScan)
+	mux.HandleFunc("GET /api/tools/sherlock/scans/{id}", h.getSherlockScan)
+	mux.HandleFunc("GET /api/tools/sherlock/scans/{id}/events", h.streamSherlockScan)
+	mux.HandleFunc("DELETE /api/tools/sherlock/scans/{id}", h.cancelSherlockScan)
+	mux.HandleFunc("POST /api/tools/sherlock/scans/{id}/import", h.importSherlockScan)
 	mux.HandleFunc("GET /api/integrations", h.listIntegrations)
 	mux.HandleFunc("GET /api/integrations/{id}/dossier", h.readDossier)
 	mux.HandleFunc("PUT /api/integrations/{id}/dossier", h.writeDossier)

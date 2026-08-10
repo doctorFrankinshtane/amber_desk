@@ -4,3 +4,4 @@ server.log
 server.err
 amberdesk.exe
 amberdesk-*.exe
+.tools/
