@@ -20,3 +20,12 @@ The complete Leaflet license text is included at `web/vendor/leaflet/LICENSE`.
 - Vendored derivatives: `web/data/world.geojson`, `web/data/cities.geojson`
 
 Natural Earth requests attribution but does not require it. Amber Desk includes this notice to preserve provenance.
+
+## OSINT Framework
+
+- Snapshot version: `a744e613d7ded0aaa854896feb2a1069de34d2f8`
+- Project: https://github.com/lockfale/osint-framework
+- License: MIT
+- Vendored dataset: `web/data/osint-framework.json`
+
+Catalog data is derived from OSINT Framework by Justin Nordine. The complete upstream license and copyright notice is included at `docs/licenses/OSINT-FRAMEWORK-LICENSE`.

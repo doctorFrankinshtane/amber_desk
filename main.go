@@ -1,6 +1,7 @@
 package main
 
 import (
+	"bytes"
 	"embed"
 	"fmt"
 	"io/fs"
@@ -11,8 +12,10 @@ import (
 	"time"
 
 	"amberdesk/internal/casefile"
+	catalogprovider "amberdesk/internal/catalog"
 	"amberdesk/internal/connectors/obsidian"
 	"amberdesk/internal/httpapi"
+	"amberdesk/pkg/catalog"
 	"amberdesk/pkg/connectors"
 )
 
@@ -25,7 +28,17 @@ func main() {
 		log.Fatal(err)
 	}
 
-	store := casefile.NewStore(casefile.DemoCase())
+	store := casefile.NewStore(casefile.BlankCase())
+	catalogData, err := fs.ReadFile(webFiles, "web/data/osint-framework.json")
+	if err != nil {
+		log.Fatalf("load OSINT catalog: %v", err)
+	}
+	catalogProvider, err := catalogprovider.NewStatic(bytes.NewReader(catalogData), catalog.Metadata{
+		Name: "OSINT Framework", Source: "https://github.com/lockfale/osint-framework", Version: "a744e613d7ded0aaa854896feb2a1069de34d2f8", ImportedAt: "2026-08-10", License: "MIT",
+	})
+	if err != nil {
+		log.Fatalf("validate OSINT catalog: %v", err)
+	}
 	obsidianConnector, err := obsidian.New(obsidian.Config{
 		VaultPath:  os.Getenv("OBSIDIAN_VAULT"),
 		DossierDir: envOr("OBSIDIAN_DOSSIER_DIR", "Amber Desk/Dossiers"),
@@ -34,7 +47,7 @@ func main() {
 		log.Fatalf("configure obsidian connector: %v", err)
 	}
 	registry := connectors.NewRegistry(obsidianConnector)
-	handler := httpapi.NewWithConfig(store, registry, webRoot, httpapi.Config{MapTiles: httpapi.MapTileConfig{
+	handler := httpapi.NewWithConfig(store, registry, webRoot, httpapi.Config{Catalog: catalogProvider, MapTiles: httpapi.MapTileConfig{
 		Directory: os.Getenv("MAP_TILE_DIR"),
 		Extension: envOr("MAP_TILE_EXT", "png"),
 		MinZoom:   envInt("MAP_TILE_MIN_ZOOM", 0),

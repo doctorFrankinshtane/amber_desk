@@ -12,6 +12,7 @@ const state = {
   connectorMessageKey: "connector.checking",
   connectorMessageError: false,
   timelineBackend: "memory",
+  workView: "timeline-view",
 };
 
 const commands = [
@@ -59,7 +60,7 @@ function cacheElements() {
     "language-select", "obsidian-open", "dossier-dialog", "dossier-close", "dossier-path",
     "dossier-sync-state", "connector-message", "dossier-refresh", "dossier-save",
     "dossier-content", "dossier-stats",
-    "timeline-backend", "timeline-bootstrap", "timeline-add", "event-dialog", "event-form",
+    "timeline-title", "timeline-backend", "timeline-add", "event-dialog", "event-form",
     "event-close", "event-cancel", "event-title", "event-type", "event-time", "event-summary",
     "event-source", "event-confidence",
   ].forEach((id) => { elements[id] = document.getElementById(id); });
@@ -75,11 +76,11 @@ function bindEvents() {
   elements["dossier-save"].addEventListener("click", saveDossier);
   elements["dossier-content"].addEventListener("input", markDossierDirty);
   document.querySelector(".workspace-tabs").addEventListener("click", switchWorkView);
-  elements["timeline-bootstrap"].addEventListener("click", bootstrapTimeline);
   elements["timeline-add"].addEventListener("click", openEventDialog);
   elements["event-close"].addEventListener("click", () => elements["event-dialog"].close());
   elements["event-cancel"].addEventListener("click", () => elements["event-dialog"].close());
   elements["event-form"].addEventListener("submit", createTimelineEvent);
+  document.addEventListener("amber:timeline-changed", () => loadTimeline(true));
   window.addEventListener("beforeunload", (event) => {
     if (!state.dossierDirty) return;
     event.preventDefault();
@@ -126,7 +127,8 @@ function bindEvents() {
       openPalette();
     } else if (event.key === "/" && !isTypingTarget(event.target)) {
       event.preventDefault();
-      elements.search.focus();
+      if (state.workView === "catalog-view") document.getElementById("catalog-search").focus();
+      else elements.search.focus();
     }
   });
 }
@@ -141,6 +143,7 @@ async function loadCase() {
     elements["api-state"].textContent = I18n.t("state.synced");
     enableControls();
     renderCase();
+    commandMessage("WORKSPACE READY");
   } catch (error) {
     elements["api-state"].textContent = I18n.t("state.offline");
     elements["command-output"].textContent = `CONNECTION ERROR / ${error.message}`;
@@ -154,25 +157,11 @@ async function loadTimeline(silent = false) {
     state.caseData.events = snapshot.events || [];
     state.timelineBackend = snapshot.backend || "memory";
     elements["timeline-backend"].textContent = state.timelineBackend.toUpperCase();
-    elements["timeline-bootstrap"].hidden = state.timelineBackend !== "obsidian" || state.caseData.events.length > 0;
     if (state.selectedID && !state.caseData.events.some((event) => event.id === state.selectedID)) state.selectedID = state.caseData.events[0]?.id || null;
     if (silent) { renderTimeline(); renderEvidence(); }
   } catch (error) {
     if (!silent) throw error;
   }
-}
-
-async function bootstrapTimeline() {
-  try {
-    const snapshot = await request("/api/timeline/bootstrap", { method: "POST", body: "{}" });
-    state.caseData.events = snapshot.events || [];
-    state.timelineBackend = snapshot.backend;
-    state.selectedID = state.caseData.events[0]?.id || null;
-    elements["timeline-bootstrap"].hidden = true;
-    renderTimeline();
-    renderEvidence();
-    commandMessage(`TIMELINE / ${snapshot.backend.toUpperCase()} / IMPORTED`);
-  } catch (error) { commandMessage(error.message, true); }
 }
 
 function openEventDialog() {
@@ -216,9 +205,18 @@ async function createTimelineEvent(event) {
 function switchWorkView(event) {
   const button = event.target.closest("button[data-work-view]");
   if (!button) return;
+  state.workView = button.dataset.workView;
   document.querySelectorAll("[data-work-view]").forEach((item) => item.classList.toggle("active", item === button));
-  document.querySelectorAll(".work-view").forEach((view) => { view.hidden = view.id !== button.dataset.workView; });
-  if (button.dataset.workView === "map-view") window.AmberMap.init();
+  document.querySelectorAll(".work-view").forEach((view) => { view.hidden = view.id !== state.workView; });
+  elements.shell.dataset.workspace = state.workView === "catalog-view" ? "catalog" : "case";
+  syncWorkspaceTitle();
+  if (state.workView === "map-view") window.AmberMap.init();
+  if (state.workView === "catalog-view") window.AmberCatalog.init();
+}
+
+function syncWorkspaceTitle() {
+  const key = state.workView === "catalog-view" ? "catalog.title" : state.workView === "map-view" ? "map.title" : "timeline.title";
+  elements["timeline-title"].textContent = I18n.t(key);
 }
 
 async function loadIntegrations() {
@@ -349,6 +347,11 @@ function changeLanguage(language) {
   if (dossierState) setDossierState(dossierState);
   updateDossierStats();
   if (elements["command-palette"].open) renderCommands();
+  syncWorkspaceTitle();
+  if (window.AmberCatalog?.loaded) {
+    window.AmberCatalog.renderCategories();
+    window.AmberCatalog.render();
+  }
 }
 
 function enableControls() {
@@ -594,23 +597,18 @@ function updateClock() {
 function drawAvatar() {
   const canvas = elements["subject-avatar"];
   const context = canvas.getContext("2d");
-  const pixels = [
-    "00011111100000", "00111111110000", "01122222211000", "01122222211000",
-    "01221112221000", "01201210221000", "01222222221000", "00122112210000",
-    "00122222210000", "00012222100000", "00111111110000", "01113333111000",
-    "11133333311100", "11333333331100",
-  ];
-  const colors = ["#0a0705", "#6d4820", "#d38b35", "#9c6629"];
-  const size = 8;
-  context.fillStyle = colors[0];
+  context.fillStyle = "#0a0705";
   context.fillRect(0, 0, canvas.width, canvas.height);
-  pixels.forEach((row, y) => [...row].forEach((value, x) => {
-    context.fillStyle = colors[Number(value)];
-    context.fillRect(x * size, y * size, size, size);
-  }));
-  context.fillStyle = "#f5b94e";
-  context.fillRect(4 * size, 5 * size, size, size);
-  context.fillRect(9 * size, 5 * size, size, size);
+  context.strokeStyle = "#6d4820";
+  context.lineWidth = 2;
+  for (let offset = 8; offset < canvas.width; offset += 16) {
+    context.beginPath(); context.moveTo(offset, 0); context.lineTo(offset, canvas.height); context.stroke();
+    context.beginPath(); context.moveTo(0, offset); context.lineTo(canvas.width, offset); context.stroke();
+  }
+  context.strokeStyle = "#f5b94e";
+  context.strokeRect(29, 29, 54, 54);
+  context.beginPath(); context.moveTo(56, 16); context.lineTo(56, 96); context.stroke();
+  context.beginPath(); context.moveTo(16, 56); context.lineTo(96, 56); context.stroke();
 }
 
 function node(tag, attributes = {}, text = "") {

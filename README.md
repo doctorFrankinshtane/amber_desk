@@ -17,7 +17,7 @@ Extensible browser workspace for OSINT investigations. Amber Desk combines a den
 
 ## Features
 
-- Dossier, Obsidian-backed chronology, evidence, and world map workspaces
+- Dossier, Obsidian-backed chronology, evidence, world map, and OSINT source workspaces
 - English and Russian interface localization
 - Search and evidence filters
 - Verification status and analyst notes
@@ -30,6 +30,8 @@ Extensible browser workspace for OSINT investigations. Amber Desk combines a den
 - Offline local XYZ map packs for street, building, address, and POI detail
 - Timeline, marker, and route notes persisted as readable Markdown
 - Conflict protection when an Obsidian file changes externally
+- Local OSINT Framework catalog with category, text, pricing, and status filters
+- One-click source provenance logging into the investigation chronology
 
 ## Quick Start
 
@@ -66,7 +68,7 @@ Amber Desk/
     Map/Routes/<route-id>.md
 ```
 
-Each note has versioned YAML frontmatter for Amber Desk and a readable Markdown body for editing and linking inside Obsidian. An empty vault offers **Import Demo** once; after that, changes in either application are picked up by the browser automatically or on reload.
+Each note has versioned YAML frontmatter for Amber Desk and a readable Markdown body for editing and linking inside Obsidian. New workspaces start with an empty case and chronology. Changes in either application are picked up by the browser automatically or on reload.
 
 ![Obsidian dossier editor](docs/assets/obsidian-connector.png)
 
@@ -88,6 +90,16 @@ Set `MAP_TILE_DIR` to the pack root. Labels and POIs must be rendered into the l
 
 ![Amber Desk world map](docs/assets/amber-map.png)
 
+## OSINT Source Catalog
+
+Open **OSINT Tools** above the chronology to browse the bundled OSINT Framework snapshot. The catalog is normalized and validated by a separate Go `CatalogProvider`; it is not stored in Obsidian and the browser does not fetch catalog data from third-party servers.
+
+Search and filters run locally. **Open Source** is the only action that leaves Amber Desk, and it opens the selected third-party URL with referrer suppression. **Log to Timeline** records the tool name, URL, catalog version, and selection time through the same timeline backend used by manual events.
+
+The bundled snapshot comes from OSINT Framework commit `a744e613d7ded0aaa854896feb2a1069de34d2f8`. See [OSINT Framework Integration](docs/OSINT_FRAMEWORK.md) and [Third-Party Notices](docs/THIRD_PARTY.md) for provenance and licensing.
+
+![Amber Desk OSINT source catalog](docs/assets/amber-catalog.png)
+
 ## Configuration
 
 | Variable | Default | Purpose |
@@ -107,7 +119,6 @@ See [.env.example](.env.example) for a local template.
 - `GET /api/health`
 - `GET /api/case`
 - `GET /api/timeline`
-- `POST /api/timeline/bootstrap`
 - `POST /api/timeline/events`
 - `PATCH /api/events/{id}/status`
 - `POST /api/events/{id}/notes`
@@ -117,11 +128,12 @@ See [.env.example](.env.example) for a local template.
 - `DELETE /api/map/markers/{id}`
 - `POST /api/map/routes`
 - `DELETE /api/map/routes/{id}`
+- `GET /api/catalog`
 - `GET /api/integrations`
 - `GET /api/integrations/{id}/dossier`
 - `PUT /api/integrations/{id}/dossier`
 
-The demo case remains in memory. When a connected provider advertises `timeline.*` or `map.*`, those capability routes persist through that provider; otherwise they use a session-only memory fallback.
+The initial case and chronology are empty. When a connected provider advertises `timeline.*` or `map.*`, those capability routes persist through that provider; otherwise they use a session-only memory fallback.
 
 ## Extensions
 

@@ -26,11 +26,20 @@ func TestCaseAndEventWorkflow(t *testing.T) {
 	}
 	var caseData casefile.Case
 	decode(t, caseResponse, &caseData)
-	if caseData.Name != "NORTHSTAR" || len(caseData.Events) == 0 {
+	if caseData.Name != "UNTITLED CASE" || len(caseData.Events) != 0 {
 		t.Fatalf("unexpected case response: %+v", caseData)
 	}
+	if caseData.Subject.Aliases == nil || caseData.Subject.Identifiers == nil || caseData.Subject.Relations == nil || caseData.Tags == nil {
+		t.Fatalf("empty collections must serialize as arrays: %+v", caseData)
+	}
+	createdResponse := request(t, handler, http.MethodPost, "/api/timeline/events", `{"title":"Test observation","type":"identity","confidence":70}`)
+	if createdResponse.Code != http.StatusCreated {
+		t.Fatalf("create event = %d: %s", createdResponse.Code, createdResponse.Body.String())
+	}
+	var created casefile.Event
+	decode(t, createdResponse, &created)
 
-	statusResponse := request(t, handler, http.MethodPatch, "/api/events/EV-107/status", `{"status":"verified"}`)
+	statusResponse := request(t, handler, http.MethodPatch, "/api/events/"+created.ID+"/status", `{"status":"verified"}`)
 	if statusResponse.Code != http.StatusOK {
 		t.Fatalf("PATCH status = %d: %s", statusResponse.Code, statusResponse.Body.String())
 	}
@@ -40,7 +49,7 @@ func TestCaseAndEventWorkflow(t *testing.T) {
 		t.Fatalf("event status = %q", updated.Status)
 	}
 
-	noteResponse := request(t, handler, http.MethodPost, "/api/events/EV-107/notes", `{"text":"Independent confirmation"}`)
+	noteResponse := request(t, handler, http.MethodPost, "/api/events/"+created.ID+"/notes", `{"text":"Independent confirmation"}`)
 	if noteResponse.Code != http.StatusCreated {
 		t.Fatalf("POST note status = %d: %s", noteResponse.Code, noteResponse.Body.String())
 	}
@@ -95,7 +104,7 @@ func TestRoutesTimelineWritesThroughObsidianCapability(t *testing.T) {
 		t.Fatal(err)
 	}
 	web := fstest.MapFS{"index.html": {Data: []byte("<title>Amber Desk</title>")}}
-	handler := httpapi.New(casefile.NewStore(casefile.DemoCase()), connectors.NewRegistry(provider), web)
+	handler := httpapi.New(casefile.NewStore(casefile.BlankCase()), connectors.NewRegistry(provider), web)
 
 	createdResponse := request(t, handler, http.MethodPost, "/api/timeline/events", `{"title":"Vault event","type":"identity","confidence":85}`)
 	if createdResponse.Code != http.StatusCreated {
@@ -124,7 +133,7 @@ func TestServesConfiguredLocalMapTiles(t *testing.T) {
 		t.Fatal(err)
 	}
 	web := fstest.MapFS{"index.html": {Data: []byte("<title>Amber Desk</title>")}}
-	handler := httpapi.NewWithConfig(casefile.NewStore(casefile.DemoCase()), connectors.NewRegistry(&fakeConnector{}), web, httpapi.Config{MapTiles: httpapi.MapTileConfig{Directory: tileRoot, Extension: "png", MaxZoom: 18}})
+	handler := httpapi.NewWithConfig(casefile.NewStore(casefile.BlankCase()), connectors.NewRegistry(&fakeConnector{}), web, httpapi.Config{MapTiles: httpapi.MapTileConfig{Directory: tileRoot, Extension: "png", MaxZoom: 18}})
 
 	configResponse := request(t, handler, http.MethodGet, "/api/map/basemap", "")
 	if configResponse.Code != http.StatusOK || !strings.Contains(configResponse.Body.String(), `"mode":"local_xyz"`) {
@@ -170,7 +179,7 @@ func TestIntegrationDossierWorkflow(t *testing.T) {
 func newHandler() http.Handler {
 	web := fstest.MapFS{"index.html": {Data: []byte("<title>Amber Desk</title>")}}
 	registry := connectors.NewRegistry(&fakeConnector{})
-	return httpapi.New(casefile.NewStore(casefile.DemoCase()), registry, web)
+	return httpapi.New(casefile.NewStore(casefile.BlankCase()), registry, web)
 }
 
 type fakeConnector struct {

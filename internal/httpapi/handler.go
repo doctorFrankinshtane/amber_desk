@@ -12,6 +12,7 @@ import (
 
 	"amberdesk/internal/casefile"
 	"amberdesk/internal/connectors"
+	"amberdesk/pkg/catalog"
 )
 
 type Handler struct {
@@ -22,6 +23,7 @@ type Handler struct {
 	markers    []connectors.MapMarker
 	routes     []connectors.MapRoute
 	mapTiles   MapTileConfig
+	catalog    catalog.Provider
 }
 
 func New(store *casefile.Store, registry *connectors.Registry, webFiles fs.FS) http.Handler {
@@ -30,10 +32,11 @@ func New(store *casefile.Store, registry *connectors.Registry, webFiles fs.FS) h
 
 type Config struct {
 	MapTiles MapTileConfig
+	Catalog  catalog.Provider
 }
 
 func NewWithConfig(store *casefile.Store, registry *connectors.Registry, webFiles fs.FS, config Config) http.Handler {
-	h := &Handler{store: store, connectors: registry, web: http.FileServer(http.FS(webFiles)), mapTiles: config.MapTiles.normalized()}
+	h := &Handler{store: store, connectors: registry, web: http.FileServer(http.FS(webFiles)), mapTiles: config.MapTiles.normalized(), catalog: config.Catalog}
 	mux := http.NewServeMux()
 	mux.HandleFunc("GET /api/health", h.health)
 	mux.HandleFunc("GET /api/case", h.getCase)
@@ -50,11 +53,25 @@ func NewWithConfig(store *casefile.Store, registry *connectors.Registry, webFile
 	mux.HandleFunc("DELETE /api/map/routes/{id}", h.deleteMapRoute)
 	mux.HandleFunc("GET /api/map/basemap", h.getBasemap)
 	mux.HandleFunc("GET /api/map/tiles/{z}/{x}/{y}", h.getMapTile)
+	mux.HandleFunc("GET /api/catalog", h.getCatalog)
 	mux.HandleFunc("GET /api/integrations", h.listIntegrations)
 	mux.HandleFunc("GET /api/integrations/{id}/dossier", h.readDossier)
 	mux.HandleFunc("PUT /api/integrations/{id}/dossier", h.writeDossier)
 	mux.Handle("/", h.web)
 	return securityHeaders(mux)
+}
+
+func (h *Handler) getCatalog(w http.ResponseWriter, r *http.Request) {
+	if h.catalog == nil {
+		writeError(w, http.StatusServiceUnavailable, "catalog provider is not configured")
+		return
+	}
+	snapshot, err := h.catalog.Snapshot(r.Context())
+	if err != nil {
+		writeError(w, http.StatusBadGateway, "catalog provider is unavailable")
+		return
+	}
+	writeJSON(w, http.StatusOK, snapshot)
 }
 
 func (h *Handler) listIntegrations(w http.ResponseWriter, r *http.Request) {

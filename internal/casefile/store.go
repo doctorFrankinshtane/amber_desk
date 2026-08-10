@@ -116,10 +116,10 @@ func (s *Store) AddEvent(event Event) (Event, error) {
 
 func cloneCase(source Case) Case {
 	copy := source
-	copy.Tags = append([]string(nil), source.Tags...)
-	copy.Subject.Aliases = append([]string(nil), source.Subject.Aliases...)
-	copy.Subject.Identifiers = append([]Identifier(nil), source.Subject.Identifiers...)
-	copy.Subject.Relations = append([]Relation(nil), source.Subject.Relations...)
+	copy.Tags = append([]string{}, source.Tags...)
+	copy.Subject.Aliases = append([]string{}, source.Subject.Aliases...)
+	copy.Subject.Identifiers = append([]Identifier{}, source.Subject.Identifiers...)
+	copy.Subject.Relations = append([]Relation{}, source.Subject.Relations...)
 	copy.Events = make([]Event, len(source.Events))
 	for i, event := range source.Events {
 		copy.Events[i] = cloneEvent(event)
@@ -129,7 +129,7 @@ func cloneCase(source Case) Case {
 
 func cloneEvent(source Event) Event {
 	copy := source
-	copy.Indicators = append([]string(nil), source.Indicators...)
-	copy.Notes = append([]Note(nil), source.Notes...)
+	copy.Indicators = append([]string{}, source.Indicators...)
+	copy.Notes = append([]Note{}, source.Notes...)
 	return copy
 }

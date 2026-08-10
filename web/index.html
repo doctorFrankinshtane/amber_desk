@@ -97,6 +97,7 @@ _______/</pre>
         <nav class="workspace-tabs" aria-label="Workspace views">
           <button class="active" type="button" data-work-view="timeline-view" data-i18n="tabs.timeline">TIMELINE</button>
           <button type="button" data-work-view="map-view" data-i18n="map.tab">WORLD MAP</button>
+          <button type="button" data-work-view="catalog-view" data-i18n="catalog.tab">OSINT TOOLS</button>
           <span id="timeline-backend">MEMORY</span>
         </nav>
         <div id="timeline-view" class="work-view active">
@@ -108,8 +109,9 @@ _______/</pre>
             <button type="button" data-filter="media">MEDIA</button>
             <button type="button" data-filter="social">SOC</button>
             <button type="button" data-filter="financial">FIN</button>
+            <button type="button" data-filter="tool">TOOL</button>
           </div>
-          <div class="timeline-tools"><button id="timeline-bootstrap" type="button" data-i18n="timeline.import">IMPORT DEMO</button><button id="timeline-add" type="button" title="Add event" aria-label="Add event">+</button>
+          <div class="timeline-tools"><button id="timeline-add" type="button" title="Add event" aria-label="Add event">+</button>
           <label class="status-filter"><span data-i18n="common.status">STATUS</span>
             <select id="status-filter" disabled>
               <option value="all" data-i18n="common.all">ALL</option>
@@ -136,6 +138,19 @@ _______/</pre>
               <form id="marker-form" hidden><input id="marker-id" type="hidden"><label><span data-i18n="map.label">LABEL</span><input id="marker-label" maxlength="100" required></label><div class="coordinate-fields"><label><span data-i18n="map.latitude">LATITUDE</span><input id="marker-lat" type="number" min="-90" max="90" step="0.00001" required></label><label><span data-i18n="map.longitude">LONGITUDE</span><input id="marker-lng" type="number" min="-180" max="180" step="0.00001" required></label></div><label><span data-i18n="map.time">OBSERVED AT</span><input id="marker-time" type="datetime-local"></label><label><span data-i18n="map.description">DESCRIPTION</span><textarea id="marker-description" rows="4" maxlength="1000"></textarea></label><div class="map-form-actions"><button id="marker-delete" type="button" data-i18n="common.delete">DELETE</button><button type="submit" data-i18n="common.save">SAVE</button></div></form>
               <section id="route-inspector" hidden><h3 data-i18n="map.route">ROUTE</h3><p id="route-label"></p><button id="route-delete" type="button" data-i18n="common.delete">DELETE</button></section>
             </aside>
+          </div>
+        </div>
+        <div id="catalog-view" class="work-view catalog-view" hidden>
+          <div class="catalog-toolbar">
+            <label><span aria-hidden="true">/</span><input id="catalog-search" type="search" autocomplete="off" placeholder="SEARCH OSINT TOOLS" data-i18n-placeholder="catalog.search"></label>
+            <select id="catalog-pricing" aria-label="Pricing"><option value="all" data-i18n="catalog.allPricing">ALL PRICING</option></select>
+            <select id="catalog-status" aria-label="Status"><option value="all" data-i18n="catalog.allStatus">ALL STATUS</option></select>
+            <span id="catalog-count">0000 TOOLS</span>
+          </div>
+          <div class="catalog-layout">
+            <nav class="catalog-categories" aria-label="OSINT categories"><header><span class="section-code">CAT</span><h2 data-i18n="catalog.categories">CATEGORIES</h2></header><div id="catalog-categories"></div></nav>
+            <section class="catalog-results" aria-labelledby="catalog-results-title"><header><h2 id="catalog-results-title" data-i18n="catalog.sources">SOURCES</h2><span id="catalog-visible">0000</span></header><div id="catalog-tools"></div></section>
+            <aside class="catalog-inspector" aria-labelledby="catalog-inspector-title"><header><span class="section-code">SRC</span><h2 id="catalog-inspector-title" data-i18n="catalog.inspector">SOURCE INSPECTOR</h2></header><div id="catalog-detail"><p class="catalog-placeholder" data-i18n="catalog.select">Select an OSINT source.</p></div></aside>
           </div>
         </div>
       </section>
@@ -217,6 +232,7 @@ _______/</pre>
   <script src="i18n.js"></script>
   <script src="planet.js"></script>
   <script src="map.js"></script>
+  <script src="catalog.js"></script>
   <script src="app.js"></script>
 </body>
 </html>
