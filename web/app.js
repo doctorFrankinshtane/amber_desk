@@ -15,6 +15,7 @@ const state = {
   workView: "timeline-view",
   cases: [],
   casesBackend: "memory",
+  avatar: { primaryNodeID: "", coverAttachmentID: "", requestID: 0 },
 };
 
 const commands = [
@@ -60,7 +61,7 @@ function cacheElements() {
     "event-id", "command-input", "command-output", "open-palette", "command-palette",
     "palette-input", "command-list", "subject-codename", "subject-name", "subject-risk",
     "confidence", "confidence-meter", "last-seen", "location", "aliases", "alias-count",
-    "identifiers", "identifier-count", "relations", "relation-count", "subject-avatar",
+    "identifiers", "identifier-count", "relations", "relation-count", "subject-avatar", "subject-avatar-image", "subject-avatar-upload", "subject-avatar-input", "subject-avatar-status",
     "language-select", "obsidian-open", "dossier-dialog", "dossier-close", "dossier-path",
     "dossier-sync-state", "connector-message", "dossier-refresh", "dossier-save",
     "dossier-content", "dossier-stats",
@@ -98,6 +99,9 @@ function bindEvents() {
   elements["dossier-refresh"].addEventListener("click", () => loadDossier(true));
   elements["dossier-save"].addEventListener("click", saveDossier);
   elements["dossier-content"].addEventListener("input", markDossierDirty);
+  elements["subject-avatar-upload"].addEventListener("click", () => elements["subject-avatar-input"].click());
+  elements["subject-avatar-input"].addEventListener("change", uploadSubjectAvatar);
+  document.addEventListener("amber:relationships-changed", () => loadSubjectAvatar());
   document.querySelector(".workspace-tabs").addEventListener("click", switchWorkView);
   elements["timeline-add"].addEventListener("click", openEventDialog);
   elements["event-close"].addEventListener("click", () => elements["event-dialog"].close());
@@ -556,6 +560,7 @@ function renderCase() {
     return item;
   }));
   elements["relation-count"].textContent = pad(subject.relations.length);
+  loadSubjectAvatar();
   renderTimeline();
   renderEvidence();
 }
@@ -790,6 +795,64 @@ function drawAvatar() {
   context.strokeRect(29, 29, 54, 54);
   context.beginPath(); context.moveTo(56, 16); context.lineTo(56, 96); context.stroke();
   context.beginPath(); context.moveTo(16, 56); context.lineTo(96, 56); context.stroke();
+}
+
+async function loadSubjectAvatar() {
+  const requestID = ++state.avatar.requestID;
+  if (!state.caseData || state.caseData.subject.codename === "UNASSIGNED") {
+    state.avatar.primaryNodeID = ""; state.avatar.coverAttachmentID = ""; setAvatarFallback(); elements["subject-avatar-upload"].disabled = true; return;
+  }
+  elements["subject-avatar-upload"].disabled = false;
+  try {
+    const snapshot = await request("/api/relationships", {});
+    if (requestID !== state.avatar.requestID) return;
+    const primary = (snapshot.nodes || []).find((item) => item.primary);
+    state.avatar.primaryNodeID = primary?.id || "";
+    state.avatar.coverAttachmentID = primary?.coverAttachmentId || "";
+    if (!primary?.coverAttachmentId) { setAvatarFallback(); return; }
+    const image = elements["subject-avatar-image"];
+    image.onload = () => { if (requestID !== state.avatar.requestID) return; image.hidden = false; elements["subject-avatar"].hidden = true; };
+    image.onerror = () => { if (requestID === state.avatar.requestID) setAvatarFallback(); };
+    image.src = `/api/relationships/nodes/${encodeURIComponent(primary.id)}/attachments/${encodeURIComponent(primary.coverAttachmentId)}?inline=1`;
+  } catch {
+    if (requestID === state.avatar.requestID) setAvatarFallback();
+  }
+}
+
+function setAvatarFallback() {
+  const image = elements["subject-avatar-image"];
+  image.onload = null; image.onerror = null; image.removeAttribute("src"); image.hidden = true;
+  elements["subject-avatar"].hidden = false;
+}
+
+async function uploadSubjectAvatar(event) {
+  const file = event.target.files[0]; event.target.value = "";
+  if (!file) return;
+  if (!["image/jpeg", "image/png", "image/webp", "image/gif"].includes(file.type)) { setAvatarStatus("avatar.invalidType", true); return; }
+  if (file.size <= 0 || file.size > 10 * 1024 * 1024) { setAvatarStatus("avatar.invalidSize", true); return; }
+  if (!state.avatar.primaryNodeID) await loadSubjectAvatar();
+  const nodeID = state.avatar.primaryNodeID, caseID = state.caseData?.id;
+  if (!nodeID || !caseID) { setAvatarStatus("avatar.noPrimary", true); return; }
+  const shell = elements["subject-avatar"].parentElement;
+  shell.classList.add("uploading"); elements["subject-avatar-upload"].disabled = true; setAvatarStatus("avatar.uploading");
+  try {
+    const body = new FormData(); body.append("caseId", caseID); body.append("file", file, file.name);
+    const uploadResponse = await fetch(`/api/relationships/nodes/${encodeURIComponent(nodeID)}/attachments`, { method: "POST", headers: { Accept: "application/json" }, body });
+    const attachment = await uploadResponse.json();
+    if (!uploadResponse.ok) throw new Error(attachment.error || `API ${uploadResponse.status}`);
+    const coverResponse = await fetch(`/api/relationships/nodes/${encodeURIComponent(nodeID)}/cover`, { method: "PUT", headers: { Accept: "application/json", "Content-Type": "application/json" }, body: JSON.stringify({ caseId: caseID, attachmentId: attachment.id }) });
+    const cover = await coverResponse.json();
+    if (!coverResponse.ok) { setAvatarStatus("avatar.coverFailed", true); return; }
+    state.avatar.coverAttachmentID = cover.coverAttachmentId;
+    await loadSubjectAvatar();
+    setAvatarStatus("avatar.saved");
+    document.dispatchEvent(new CustomEvent("amber:relationships-changed", { detail: { node: cover, source: "dossier-avatar" } }));
+  } catch (error) { elements["subject-avatar-status"].textContent = error.message; commandMessage(`AVATAR / ${error.message}`, true); }
+  finally { shell.classList.remove("uploading"); elements["subject-avatar-upload"].disabled = false; }
+}
+
+function setAvatarStatus(key, isError = false) {
+  const message = I18n.t(key); elements["subject-avatar-status"].textContent = message; commandMessage(message, isError);
 }
 
 function node(tag, attributes = {}, text = "") {

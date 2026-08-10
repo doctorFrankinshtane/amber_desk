@@ -36,6 +36,7 @@ Extensible browser workspace for OSINT investigations. Amber Desk combines a den
 - Detective-style relationship board with draggable clue cards and sourced threads
 - Local relationship-card attachments with hashes, downloads, and at-a-glance document stacks
 - Local photo covers for relationship cards with automatic first-image selection
+- A dossier profile photo shared with the primary relationship card and stored through the same local provider
 - Native Sherlock username scans with manual relationship import
 - Multi-dossier picker with Obsidian-backed switching and restart recovery
 - Vault-local trash for complete cases and individual chronology records
@@ -102,6 +103,8 @@ Deleting a dossier requires typing its exact case ID. Amber Desk moves the dossi
 Open **Relations** to arrange the investigation as a detective link board. The primary object stays visually distinct while subjects, organizations, accounts, locations, infrastructure, evidence, and facts appear as draggable clue cards. Directional threads store a label, confidence, kind, source event IDs, and an analyst note. Amber, red, and teal threads represent standard, critical, and evidence-backed relationships.
 
 The graph engine is bundled locally. Card positions and threads are stored through the relationship capability provider, using readable Markdown notes when Obsidian is connected. Each card can hold up to 20 local files of 10 MiB each. Amber Desk validates filenames, computes a SHA-256 digest, keeps file bytes inside the active case directory, and shows the attachment count as a document stack without opening the inspector. The first JPEG, PNG, WebP, or GIF becomes the card cover automatically; another attached image can be promoted from the inspector. Cover images are served only by the local Amber Desk backend and the selected attachment ID is persisted in Obsidian frontmatter. Removed files are moved into the case-local `.trash` tree.
+
+The photo in the dossier identity block is the cover of the primary relationship card. Uploading it from either view updates the same attachment and cover metadata, so there is no duplicate image state outside the local case provider.
 
 ![Amber Desk relationship board](docs/assets/amber-relations.png)
 

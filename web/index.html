@@ -64,7 +64,13 @@ _______/</pre>
           <div class="dossier-heading-actions"><button id="create-dossier" class="create-dossier-button" type="button" data-i18n="wizard.open">CREATE DOSSIER</button><button id="delete-dossier" class="delete-dossier-button" type="button" data-i18n="case.delete">DELETE</button><span class="record-state" data-i18n="state.active">ACTIVE</span></div>
         </div>
         <section class="identity-block">
-          <canvas id="subject-avatar" width="112" height="112" aria-label="Пиксельный портрет объекта"></canvas>
+          <div class="subject-avatar-shell">
+            <canvas id="subject-avatar" width="112" height="112" data-i18n-aria-label="avatar.fallback"></canvas>
+            <img id="subject-avatar-image" alt="" hidden>
+            <button id="subject-avatar-upload" type="button" data-i18n-title="avatar.change" data-i18n-aria-label="avatar.change"><span aria-hidden="true">+</span></button>
+            <input id="subject-avatar-input" class="visually-hidden" type="file" accept="image/jpeg,image/png,image/webp,image/gif">
+            <output id="subject-avatar-status" class="visually-hidden" aria-live="polite"></output>
+          </div>
           <div class="identity-copy">
             <span class="label" data-i18n="dossier.primarySubject">PRIMARY SUBJECT</span>
             <h2 id="subject-codename">---</h2>

@@ -43,6 +43,7 @@ window.AmberRelations = (() => {
     el["sherlock-filter"].addEventListener("change", renderSherlockResults);
     el["sherlock-search"].addEventListener("input", renderSherlockResults);
     el["sherlock-results"].addEventListener("change", toggleSherlockResult);
+    document.addEventListener("amber:relationships-changed", (event) => { if (event.detail?.source === "dossier-avatar") refresh(); });
     el["relation-edge-confidence"].addEventListener("input", () => { el["relation-edge-confidence-value"].textContent = `${el["relation-edge-confidence"].value}%`; });
     document.addEventListener("amber:case-created", (event) => { state.snapshot = event.detail.relationships; state.loaded = true; if (state.initialized) build(); });
   }
@@ -206,20 +207,21 @@ window.AmberRelations = (() => {
     }
     await syncRelationshipNode(nodeID);
     await loadAttachments(nodeID);
+    notifyRelationshipChange(nodeID);
   }
 
   async function removeAttachment(nodeID, item) {
     if (!window.confirm(`${I18n.t("relations.removeAttachmentConfirm")}\n\n${item.filename}`)) return;
     const caseResponse = await fetch("/api/case", { headers: { Accept: "application/json" } }), caseData = await caseResponse.json();
     const removed = await api(`/api/relationships/nodes/${encodeURIComponent(nodeID)}/attachments/${encodeURIComponent(item.id)}`, { method: "DELETE", body: JSON.stringify({ caseId: caseData.id }) }, true);
-    if (removed) { await syncRelationshipNode(nodeID); await loadAttachments(nodeID); }
+    if (removed) { await syncRelationshipNode(nodeID); await loadAttachments(nodeID); notifyRelationshipChange(nodeID); }
   }
 
   async function setCover(nodeID, item) {
     const caseResponse = await fetch("/api/case", { headers: { Accept: "application/json" } }), caseData = await caseResponse.json();
     const updated = await api(`/api/relationships/nodes/${encodeURIComponent(nodeID)}/cover`, { method: "PUT", body: JSON.stringify({ caseId: caseData.id, attachmentId: item.id }) });
     if (!updated) return;
-    replaceRelationshipNode(updated); renderCoverCards(); renderAttachmentList(nodeID, state.attachments.get(nodeID) || []);
+    replaceRelationshipNode(updated); renderCoverCards(); renderAttachmentList(nodeID, state.attachments.get(nodeID) || []); notifyRelationshipChange(nodeID);
   }
 
   async function syncRelationshipNode(nodeID) {
@@ -239,6 +241,11 @@ window.AmberRelations = (() => {
     const node = state.snapshot.nodes.find((item) => item.id === nodeID); if (node) node.attachmentCount = count;
     const cyNode = state.cy?.getElementById(nodeID); if (cyNode?.length) cyNode.data("attachmentCount", count);
     renderAttachmentStacks();
+  }
+
+  function notifyRelationshipChange(nodeID) {
+    const node = state.snapshot.nodes.find((item) => item.id === nodeID);
+    document.dispatchEvent(new CustomEvent("amber:relationships-changed", { detail: { node, source: "relationships" } }));
   }
 
   function renderAttachmentStacks() {
