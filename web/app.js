@@ -16,6 +16,7 @@ const state = {
   cases: [],
   casesBackend: "memory",
   avatar: { primaryNodeID: "", coverAttachmentID: "", requestID: 0 },
+  panels: { dossierCollapsed: false, evidenceCollapsed: false },
 };
 
 const commands = [
@@ -41,6 +42,7 @@ async function init() {
   I18n.setLanguage(["en", "ru"].includes(requestedLanguage) ? requestedLanguage : I18n.detect());
   elements["language-select"].value = I18n.language;
   bindEvents();
+  restorePanelPreferences();
   const requestedView = parameters.get("view");
   if (["dossier", "timeline", "evidence"].includes(requestedView)) setMobileView(requestedView);
   drawAvatar();
@@ -69,7 +71,7 @@ function cacheElements() {
     "timeline-title", "timeline-backend", "timeline-add", "event-dialog", "event-form",
     "event-close", "event-cancel", "event-title", "event-type", "event-time", "event-summary",
     "event-source", "event-confidence", "case-picker", "case-picker-close", "case-picker-search",
-    "case-picker-list", "case-picker-status", "case-picker-create", "delete-case-dialog",
+    "case-picker-list", "case-picker-status", "case-picker-create", "delete-case-dialog", "toggle-dossier-panel", "toggle-evidence-panel",
     "delete-case-form", "delete-case-close", "delete-case-cancel", "delete-case-confirm", "delete-case-submit",
   ].forEach((id) => { elements[id] = document.getElementById(id); });
   elements.shell = document.querySelector(".app-shell");
@@ -94,6 +96,8 @@ function bindEvents() {
   elements["delete-case-cancel"].addEventListener("click", closeDeleteCaseDialog);
   elements["delete-case-confirm"].addEventListener("input", updateDeleteCaseConfirmation);
   elements["delete-case-form"].addEventListener("submit", deleteActiveCase);
+  elements["toggle-dossier-panel"].addEventListener("click", () => togglePanel("dossier"));
+  elements["toggle-evidence-panel"].addEventListener("click", () => togglePanel("evidence"));
   elements["language-select"].addEventListener("change", (event) => changeLanguage(event.target.value));
   elements["obsidian-open"].addEventListener("click", openDossierEditor);
   elements["dossier-close"].addEventListener("click", () => elements["dossier-dialog"].close());
@@ -524,6 +528,44 @@ function changeLanguage(language) {
     window.AmberCatalog.render();
   }
   window.AmberChecklist?.render();
+  applyPanelPreferences();
+}
+
+function restorePanelPreferences() {
+  try {
+    const saved = JSON.parse(localStorage.getItem("amberdesk.panels") || "{}");
+    state.panels.dossierCollapsed = saved.dossierCollapsed === true;
+    state.panels.evidenceCollapsed = saved.evidenceCollapsed === true;
+  } catch {
+    state.panels = { dossierCollapsed: false, evidenceCollapsed: false };
+  }
+  applyPanelPreferences();
+}
+
+function togglePanel(name) {
+  const key = `${name}Collapsed`;
+  state.panels[key] = !state.panels[key];
+  localStorage.setItem("amberdesk.panels", JSON.stringify(state.panels));
+  applyPanelPreferences();
+  window.dispatchEvent(new Event("resize"));
+}
+
+function applyPanelPreferences() {
+  if (!elements.shell) return;
+  elements.shell.dataset.dossierCollapsed = String(state.panels.dossierCollapsed);
+  elements.shell.dataset.evidenceCollapsed = String(state.panels.evidenceCollapsed);
+  const left = elements["toggle-dossier-panel"], right = elements["toggle-evidence-panel"];
+  if (!left || !right) return;
+  left.textContent = state.panels.dossierCollapsed ? ">" : "<";
+  right.textContent = state.panels.evidenceCollapsed ? "<" : ">";
+  left.setAttribute("aria-expanded", String(!state.panels.dossierCollapsed));
+  right.setAttribute("aria-expanded", String(!state.panels.evidenceCollapsed));
+  const leftLabel = I18n.t(state.panels.dossierCollapsed ? "panels.showDossier" : "panels.hideDossier");
+  const rightLabel = I18n.t(state.panels.evidenceCollapsed ? "panels.showEvidence" : "panels.hideEvidence");
+  left.title = leftLabel;
+  right.title = rightLabel;
+  left.setAttribute("aria-label", leftLabel);
+  right.setAttribute("aria-label", rightLabel);
 }
 
 function enableControls() {

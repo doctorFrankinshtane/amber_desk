@@ -10,7 +10,7 @@
 </head>
 <body>
   <div class="crt-noise" aria-hidden="true"></div>
-  <div class="app-shell" data-view="timeline">
+  <div class="app-shell" data-view="timeline" data-dossier-collapsed="false" data-evidence-collapsed="false">
     <header class="topbar">
       <a class="brand" href="#timeline" aria-label="Amber Desk">
         <span class="visually-hidden">Amber Desk</span>
@@ -58,7 +58,7 @@ _______/</pre>
     </nav>
 
     <main class="workspace" aria-live="polite">
-      <aside class="dossier panel" aria-labelledby="dossier-title">
+      <aside class="dossier panel" id="dossier-panel" aria-labelledby="dossier-title">
         <div class="panel-heading">
           <div><span class="section-code">01</span><h1 id="dossier-title" data-i18n="dossier.title">SUBJECT DOSSIER</h1></div>
           <div class="dossier-heading-actions"><button id="create-dossier" class="create-dossier-button" type="button" data-i18n="wizard.open">CREATE DOSSIER</button><button id="delete-dossier" class="delete-dossier-button" type="button" data-i18n="case.delete">DELETE</button><span class="record-state" data-i18n="state.active">ACTIVE</span></div>
@@ -106,8 +106,8 @@ _______/</pre>
 
       <section class="timeline panel" id="timeline" aria-labelledby="timeline-title">
         <div class="panel-heading timeline-heading">
-          <div><span class="section-code">02</span><h1 id="timeline-title" data-i18n="timeline.title">INVESTIGATION CHRONOLOGY</h1></div>
-          <div class="timeline-stats"><span><b id="visible-count">00</b> <i data-i18n="timeline.events">EVENTS</i></span><span><b id="verified-count">00</b> <i data-i18n="common.verified">VERIFIED</i></span></div>
+          <div class="timeline-heading-primary"><button id="toggle-dossier-panel" class="panel-toggle" type="button" aria-controls="dossier-panel" aria-expanded="true">&lt;</button><span class="section-code">02</span><h1 id="timeline-title" data-i18n="timeline.title">INVESTIGATION CHRONOLOGY</h1></div>
+          <div class="timeline-heading-actions"><div class="timeline-stats"><span><b id="visible-count">00</b> <i data-i18n="timeline.events">EVENTS</i></span><span><b id="verified-count">00</b> <i data-i18n="common.verified">VERIFIED</i></span></div><button id="toggle-evidence-panel" class="panel-toggle" type="button" aria-controls="evidence-panel" aria-expanded="true">&gt;</button></div>
         </div>
         <nav class="workspace-tabs" aria-label="Workspace views">
           <button class="active" type="button" data-work-view="timeline-view" data-i18n="tabs.timeline">TIMELINE</button>
@@ -228,7 +228,7 @@ _______/</pre>
         </div>
       </section>
 
-      <aside class="evidence panel" aria-labelledby="evidence-title">
+      <aside class="evidence panel" id="evidence-panel" aria-labelledby="evidence-title">
         <div class="panel-heading">
           <div><span class="section-code">03</span><h1 id="evidence-title" data-i18n="evidence.title">EVIDENCE INSPECTOR</h1></div>
           <span class="event-id" id="event-id">NO EVENT</span>

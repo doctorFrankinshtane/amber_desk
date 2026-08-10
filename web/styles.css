@@ -66,9 +66,9 @@ button:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-
 
 .workspace { display: grid; grid-template-columns: minmax(250px, 19vw) minmax(460px, 1fr) minmax(280px, 23vw); min-height: 0; }
 .panel { min-width: 0; min-height: 0; background: #0e0a07d9; }
-.dossier { border-right: 1px solid var(--line); overflow-y: auto; }
-.timeline { display: grid; grid-template-rows: auto auto minmax(0, 1fr); }
-.evidence { border-left: 1px solid var(--line); overflow-y: auto; }
+.dossier { grid-column: 1; border-right: 1px solid var(--line); overflow-y: auto; }
+.timeline { grid-column: 2; display: grid; grid-template-rows: auto auto minmax(0, 1fr); }
+.evidence { grid-column: 3; border-left: 1px solid var(--line); overflow-y: auto; }
 .panel-heading { min-height: 48px; display: flex; justify-content: space-between; align-items: center; gap: 8px; padding: 0 12px; border-bottom: 1px solid var(--line); background: #120d08; }
 .panel-heading > div:first-child { display: flex; align-items: center; gap: 8px; min-width: 0; }
 .panel-heading h1 { margin: 0; color: var(--ink-bright); font-size: 11px; white-space: nowrap; }
@@ -602,4 +602,117 @@ body { font-size: 14px; }
 
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after { scroll-behavior: auto !important; animation: none !important; transition: none !important; }
+}
+
+/* Large readability scale. Fixed pixel values keep the CRT geometry stable across viewports. */
+:root { --header-h: 70px; --command-h: 50px; }
+body { font-size: 16px; }
+.panel-heading { min-height: 56px; }
+.panel-heading h1 { min-width: 0; overflow: hidden; color: var(--ink-bright); font-size: 14px; text-overflow: ellipsis; white-space: nowrap; }
+.section-code, .record-state, .event-id, .system-state small,
+.timeline-stats, .timeline-tabs button, .timeline-tabs .backend-state,
+.map-toolbar .map-status, .catalog-toolbar > span, .catalog-path,
+.catalog-badges span, .relations-toolbar > span, .status-badge,
+.notes-list time, .palette-shell footer, .dossier-editor > footer { font-size: 11px; }
+.label, .language-picker select, .vault-button, .confidence-grid dt,
+.data-section h3, .data-section header span, .identifier-list dt,
+.relation-list small, .relation-list em, .timeline-item small,
+.event-card small, .event-score, .map-inspector h2, .catalog-toolbar select,
+.catalog-categories h2, .catalog-results h2, .catalog-inspector h2,
+.catalog-results > header span, #catalog-categories button,
+.catalog-tool small, .relations-inspector h2, .thread-direction b,
+.wizard-steps button, .wizard-grid label, .event-dialog label,
+.type-code, .notes-list .no-notes, .commandbar output,
+.commandbar button, .command-option span, .dossier-editor header p,
+.editor-status > span, .editor-toolbar button { font-size: 12px; }
+.system-state b, .system-state time, .identity-block .risk,
+.confidence-grid dd, .identifier-list dd, .relation-list b,
+.timeline-item time, .event-card strong, .catalog-tool strong,
+.catalog-placeholder, .wizard-repeat-heading h3,
+.event-dialog h2, .note-form textarea, .command-option b { font-size: 13px; }
+.identity-copy h2 { font-size: 18px; }.identity-copy p { font-size: 14px; }
+.evidence-title { font-size: 20px; }.evidence-summary, #catalog-detail section p { font-size: 15px; }
+.timeline-item strong { font-size: 14px; }.timeline-item p { font-size: 13px; line-height: 1.5; }
+
+.language-picker select, .vault-button { height: 40px; font-size: 12px; }
+.global-search { height: 42px; }.global-search input { font-size: 14px; }.global-search kbd { font-size: 10px; }
+.case-strip strong { font-size: 14px; }.case-id { font-size: 11px; }
+.workspace-tabs { min-height: 45px; }.workspace-tabs button { min-height: 44px; font-size: 12px; line-height: 1.2; }
+.timeline-tabs, .filterbar { min-height: 46px; }.segmented button, .status-filter select { min-height: 38px; font-size: 11px; }
+.timeline-tools > button, #timeline-add { width: auto; min-width: 38px; height: 38px; font-size: 11px; }
+.map-view, .catalog-view, .relations-view { grid-template-rows: 52px minmax(0, 1fr); }
+.map-toolbar, .catalog-toolbar, .relations-toolbar { min-height: 52px; }
+.map-toolbar button, .catalog-toolbar select, .relations-toolbar button { min-height: 38px; font-size: 11px; }
+.map-inspector > header, .relations-inspector > header { min-height: 52px; }
+.map-inspector input, .map-inspector textarea, .map-inspector select,
+.relations-inspector input, .relations-inspector select, .relations-inspector textarea,
+.event-dialog input, .event-dialog select, .event-dialog textarea,
+.checklist-dialog input:not([type="checkbox"]), .checklist-dialog select, .checklist-dialog textarea { min-height: 40px; font-size: 14px; }
+.map-form-actions button, #route-delete, .relations-form-actions button,
+.catalog-actions button, .catalog-actions a, .event-dialog footer button,
+.evidence-actions button, .relation-attachment-add, .sherlock-actions button { min-height: 40px; font-size: 11px; }
+.data-section { padding: 14px; }.confidence-grid > div { min-height: 48px; padding: 10px 14px; }
+.token-list li, .indicator-list li { padding: 6px 8px; font-size: 12px; }
+.identifier-list div, .relation-list li { padding-block: 8px; }
+.timeline-item { padding-block: 16px; }.timeline-row .timeline-item { padding-right: 48px; }
+.timeline-delete { width: 34px; height: 34px; font-size: 10px; }
+.note-form { grid-template-columns: 1fr 54px; }.note-form textarea { min-height: 58px; padding: 9px; }.note-form button { font-size: 11px; }
+
+.checklist-heading { min-height: 50px; }.checklist-heading h3 { font-size: 12px; }.checklist-heading span { font-size: 10px; }.checklist-heading button { width: 36px; height: 36px; font-size: 18px; }
+.checklist-progress { padding: 11px 14px 10px; }.checklist-progress small { font-size: 11px; }
+.checklist-next { min-height: 64px; padding: 9px 11px; }.checklist-next small { font-size: 10px; }.checklist-next strong { font-size: 12px; }
+.checklist-phases summary { min-height: 42px; grid-template-columns: 24px minmax(0, 1fr) auto; padding: 7px 11px; }
+.checklist-phase-code, .checklist-phase-count { font-size: 10px; }.checklist-phase-title { font-size: 11px; }
+.checklist-tasks { padding: 0 11px 9px; }.checklist-task { grid-template-columns: 24px minmax(0,1fr) 32px 32px; min-height: 48px; gap: 6px; padding: 7px 0; }
+.checklist-task > input { width: 18px; height: 18px; }.checklist-task-copy { font-size: 12px; }.checklist-task-copy small { font-size: 10px; }.checklist-task button { width: 32px; height: 32px; font-size: 12px; }
+
+.relation-attachments h3, .relation-sherlock h3 { font-size: 12px; }
+.relation-attachments header span, .relation-attachment-status, .relation-sherlock header span,
+.sherlock-stats span, .sherlock-log, .sherlock-result a, .sherlock-result small,
+.sherlock-result em { font-size: 10px; }
+.relation-attachment-item { grid-template-columns: 42px minmax(0,1fr) 34px 34px 34px; min-height: 52px; }.relation-attachment-preview { width: 42px; height: 42px; font-size: 9px; }.relation-attachment-item b { font-size: 11px; }.relation-attachment-item small { font-size: 10px; }.relation-attachment-item a, .relation-attachment-item button { width: 34px; height: 34px; }
+.relation-sherlock > header { min-height: 48px; }.relation-sherlock header button, .sherlock-launch > button { min-width: 82px; min-height: 40px; font-size: 11px; }
+.sherlock-stats b { font-size: 14px; }.sherlock-filters { grid-template-columns: 100px minmax(0,1fr); padding: 8px; }.sherlock-results { max-height: 300px; }.sherlock-result { grid-template-columns: 24px minmax(0,1fr) auto; min-height: 48px; padding: 6px 8px; }.sherlock-result b { font-size: 12px; }
+
+.timeline-heading-primary, .timeline-heading-actions { display: flex; align-items: center; gap: 9px; min-width: 0; }
+.timeline-heading-primary { flex: 1 1 auto; }.timeline-heading-actions { flex: 0 0 auto; }
+.panel-toggle { display: grid; flex: 0 0 38px; width: 38px; height: 38px; place-items: center; padding: 0; border: 1px solid var(--line); background: #0a0705; color: var(--ink-bright); font-size: 16px; }
+.panel-toggle:hover, .panel-toggle[aria-expanded="false"] { border-color: var(--ink); background: #1a1108; }
+.app-shell[data-workspace="full"] .panel-toggle { display: none; }
+
+@media (min-width: 1181px) {
+  .topbar { grid-template-columns: 390px 220px minmax(260px,1fr) 155px 190px; }
+  .workspace { grid-template-columns: 320px minmax(520px,1fr) 340px; }
+  .app-shell[data-dossier-collapsed="true"]:not([data-workspace="full"]) .workspace { grid-template-columns: 0 minmax(520px,1fr) 340px; }
+  .app-shell[data-evidence-collapsed="true"]:not([data-workspace="full"]) .workspace { grid-template-columns: 320px minmax(520px,1fr) 0; }
+  .app-shell[data-dossier-collapsed="true"][data-evidence-collapsed="true"]:not([data-workspace="full"]) .workspace { grid-template-columns: 0 minmax(520px,1fr) 0; }
+}
+
+@media (min-width: 881px) and (max-width: 1180px) {
+  .workspace { grid-template-columns: 260px minmax(360px,1fr) 280px; }
+  .app-shell[data-dossier-collapsed="true"]:not([data-workspace="full"]) .workspace { grid-template-columns: 0 minmax(360px,1fr) 280px; }
+  .app-shell[data-evidence-collapsed="true"]:not([data-workspace="full"]) .workspace { grid-template-columns: 260px minmax(360px,1fr) 0; }
+  .app-shell[data-dossier-collapsed="true"][data-evidence-collapsed="true"]:not([data-workspace="full"]) .workspace { grid-template-columns: 0 minmax(360px,1fr) 0; }
+  .timeline-stats span:last-child { display: none; }
+}
+
+@media (min-width: 881px) {
+  .app-shell[data-dossier-collapsed="true"]:not([data-workspace="full"]) .dossier,
+  .app-shell[data-evidence-collapsed="true"]:not([data-workspace="full"]) .evidence { display: none; }
+}
+
+@media (max-width: 880px) {
+  .panel-toggle { display: none; }
+  body { font-size: 15px; }
+  .panel-heading { min-height: 54px; }
+  .workspace-tabs button { font-size: 11px; }
+}
+
+@media (max-width: 520px) {
+  .topbar { grid-template-columns: 88px minmax(0,1fr) 108px; }
+  .global-search input { font-size: 13px; }
+  .vault-button, .language-picker select, .mobile-tabs button, .workspace-tabs button,
+  .panel-heading h1, .commandbar button { font-size: 11px; }
+  .mobile-tabs button { min-height: 42px; }
+  .app-shell { grid-template-rows: var(--header-h) 42px minmax(0,1fr) var(--command-h); }
 }

@@ -22,7 +22,7 @@ Extensible browser workspace for OSINT investigations. Amber Desk combines a den
 - Search and evidence filters
 - Verification status and analyst notes
 - Keyboard command palette
-- Responsive desktop and mobile layouts
+- Enlarged responsive desktop and mobile layouts with independently collapsible dossier and evidence panels
 - Go backend with embedded frontend assets
 - Connector registry for external tools
 - Bidirectional Obsidian Markdown dossier synchronization
