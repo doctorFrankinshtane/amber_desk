@@ -72,3 +72,41 @@ func TestMapPersistsMarkersAndRoutes(t *testing.T) {
 		t.Fatalf("map after cascading delete: %v %+v (route %s)", err, snapshot, route.ID)
 	}
 }
+
+func TestRelationshipsPersistAsMarkdownAndCascade(t *testing.T) {
+	vault := t.TempDir()
+	connector, err := obsidian.New(obsidian.Config{VaultPath: vault})
+	if err != nil {
+		t.Fatal(err)
+	}
+	ctx := context.Background()
+	ref := connectors.DossierRef{CaseID: "CASE-001", CaseName: "ORION"}
+	primary, err := connector.CreateRelationshipNode(ctx, ref, connectors.RelationshipNode{ID: "NODE-1", Type: "object", Title: "ORION", Primary: true, X: .5, Y: .5, SourceIDs: []string{}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	related, err := connector.CreateRelationshipNode(ctx, ref, connectors.RelationshipNode{ID: "NODE-2", Type: "organization", Title: "VECTOR LLC", X: .2, Y: .2, SourceIDs: []string{}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	_, err = connector.CreateRelationshipEdge(ctx, ref, connectors.RelationshipEdge{ID: "REL-1", SourceID: primary.ID, TargetID: related.ID, Label: "CONTROLS", Confidence: 82, Kind: "critical", SourceIDs: []string{"EV-14"}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	snapshot, err := connector.ListRelationships(ctx, ref)
+	if err != nil || len(snapshot.Nodes) != 2 || len(snapshot.Edges) != 1 {
+		t.Fatalf("relationship snapshot: %v %+v", err, snapshot)
+	}
+	path := filepath.Join(vault, "Amber Desk", "Cases", "CASE-001-ORION", "Relations", "Edges", "REL-1.md")
+	data, err := os.ReadFile(path)
+	if err != nil || !strings.Contains(string(data), "kind: relationship_edge") || !strings.Contains(string(data), "CONTROLS") {
+		t.Fatalf("relationship markdown: %v %q", err, data)
+	}
+	if err := connector.DeleteRelationshipNode(ctx, ref, related.ID); err != nil {
+		t.Fatal(err)
+	}
+	snapshot, err = connector.ListRelationships(ctx, ref)
+	if err != nil || len(snapshot.Nodes) != 1 || len(snapshot.Edges) != 0 {
+		t.Fatalf("cascade relationship delete: %v %+v", err, snapshot)
+	}
+}

@@ -26,6 +26,7 @@ Every connector must expose:
 - A stable lowercase ASCII `id`
 - A human-readable name and description
 - Explicit capabilities such as `dossier.read`, `timeline.write`, and `map.read`
+- Relationship capabilities `relationships.read` and `relationships.write` for clue cards, positions, and sourced threads
 - Whether required configuration is present
 - A health state: `connected`, `unconfigured`, `offline`, or `error`
 

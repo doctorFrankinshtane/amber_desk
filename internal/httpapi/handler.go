@@ -22,6 +22,9 @@ type Handler struct {
 	mapMu      sync.Mutex
 	markers    []connectors.MapMarker
 	routes     []connectors.MapRoute
+	relationMu sync.Mutex
+	nodes      []connectors.RelationshipNode
+	edges      []connectors.RelationshipEdge
 	mapTiles   MapTileConfig
 	catalog    catalog.Provider
 }
@@ -40,6 +43,7 @@ func NewWithConfig(store *casefile.Store, registry *connectors.Registry, webFile
 	mux := http.NewServeMux()
 	mux.HandleFunc("GET /api/health", h.health)
 	mux.HandleFunc("GET /api/case", h.getCase)
+	mux.HandleFunc("POST /api/case", h.createCase)
 	mux.HandleFunc("GET /api/timeline", h.listTimeline)
 	mux.HandleFunc("POST /api/timeline/bootstrap", h.bootstrapTimeline)
 	mux.HandleFunc("POST /api/timeline/events", h.createTimelineEvent)
@@ -54,6 +58,13 @@ func NewWithConfig(store *casefile.Store, registry *connectors.Registry, webFile
 	mux.HandleFunc("GET /api/map/basemap", h.getBasemap)
 	mux.HandleFunc("GET /api/map/tiles/{z}/{x}/{y}", h.getMapTile)
 	mux.HandleFunc("GET /api/catalog", h.getCatalog)
+	mux.HandleFunc("GET /api/relationships", h.listRelationships)
+	mux.HandleFunc("POST /api/relationships/nodes", h.createRelationshipNode)
+	mux.HandleFunc("PUT /api/relationships/nodes/{id}", h.updateRelationshipNode)
+	mux.HandleFunc("DELETE /api/relationships/nodes/{id}", h.deleteRelationshipNode)
+	mux.HandleFunc("POST /api/relationships/edges", h.createRelationshipEdge)
+	mux.HandleFunc("PUT /api/relationships/edges/{id}", h.updateRelationshipEdge)
+	mux.HandleFunc("DELETE /api/relationships/edges/{id}", h.deleteRelationshipEdge)
 	mux.HandleFunc("GET /api/integrations", h.listIntegrations)
 	mux.HandleFunc("GET /api/integrations/{id}/dossier", h.readDossier)
 	mux.HandleFunc("PUT /api/integrations/{id}/dossier", h.writeDossier)
@@ -231,7 +242,7 @@ func securityHeaders(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("X-Content-Type-Options", "nosniff")
 		w.Header().Set("Referrer-Policy", "no-referrer")
-		w.Header().Set("Content-Security-Policy", "default-src 'self'; style-src 'self'; script-src 'self'; img-src 'self' data:")
+		w.Header().Set("Content-Security-Policy", "default-src 'self'; style-src 'self' 'unsafe-inline'; script-src 'self'; img-src 'self' data:")
 		next.ServeHTTP(w, r)
 	})
 }

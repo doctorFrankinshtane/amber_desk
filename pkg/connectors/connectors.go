@@ -23,9 +23,13 @@ type TimelineSnapshot = internal.TimelineSnapshot
 type MapMarker = internal.MapMarker
 type MapRoute = internal.MapRoute
 type MapSnapshot = internal.MapSnapshot
+type RelationshipNode = internal.RelationshipNode
+type RelationshipEdge = internal.RelationshipEdge
+type RelationshipSnapshot = internal.RelationshipSnapshot
 type Connector = internal.Connector
 type TimelineConnector = internal.TimelineConnector
 type MapConnector = internal.MapConnector
+type RelationshipConnector = internal.RelationshipConnector
 type Registry = internal.Registry
 
 func NewRegistry(items ...Connector) *Registry {

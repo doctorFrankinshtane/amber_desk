@@ -67,6 +67,55 @@ func TestStatusValidation(t *testing.T) {
 	}
 }
 
+func TestCreateDossierSeedsRelationshipBoard(t *testing.T) {
+	handler := newHandler()
+	body := `{"name":"CASE ORION","owner":"Analyst","objective":"Trace infrastructure","tags":["person"],"subject":{"codename":"ORION","displayName":"Test Subject","risk":"high","confidence":75,"aliases":[],"identifiers":[{"type":"email","value":"orion@example.test"}],"relations":[{"name":"VECTOR LLC","type":"organization","risk":"high"}]}}`
+	created := request(t, handler, http.MethodPost, "/api/case", body)
+	if created.Code != http.StatusCreated {
+		t.Fatalf("create dossier: %d %s", created.Code, created.Body.String())
+	}
+	var response struct {
+		Case          casefile.Case                   `json:"case"`
+		Relationships connectors.RelationshipSnapshot `json:"relationships"`
+	}
+	decode(t, created, &response)
+	if response.Case.Name != "CASE ORION" || !strings.HasPrefix(response.Case.ID, "CASE-") || len(response.Case.ID) != 13 {
+		t.Fatalf("unexpected case: %+v", response.Case)
+	}
+	if len(response.Relationships.Nodes) != 3 || len(response.Relationships.Edges) != 2 || !response.Relationships.Nodes[0].Primary {
+		t.Fatalf("unexpected relationship seed: %+v", response.Relationships)
+	}
+	edge := request(t, handler, http.MethodPost, "/api/relationships/edges", `{"sourceId":"missing","targetId":"also-missing","label":"CONTROLS","confidence":50}`)
+	if edge.Code != http.StatusBadRequest {
+		t.Fatalf("invalid edge status = %d", edge.Code)
+	}
+	duplicate := request(t, handler, http.MethodPost, "/api/case", body)
+	if duplicate.Code != http.StatusConflict {
+		t.Fatalf("second active dossier status = %d", duplicate.Code)
+	}
+}
+
+func TestCreateDossierSynchronizesObsidian(t *testing.T) {
+	vault := t.TempDir()
+	provider, err := obsidian.New(obsidian.Config{VaultPath: vault})
+	if err != nil {
+		t.Fatal(err)
+	}
+	web := fstest.MapFS{"index.html": {Data: []byte("Amber Desk")}}
+	handler := httpapi.New(casefile.NewStore(casefile.BlankCase()), connectors.NewRegistry(provider), web)
+	body := `{"name":"CASE ORION","subject":{"codename":"ORION","risk":"medium","confidence":75,"aliases":[],"identifiers":[],"relations":[{"name":"VECTOR LLC","type":"organization","risk":"high"}]},"tags":[]}`
+	created := request(t, handler, http.MethodPost, "/api/case", body)
+	if created.Code != http.StatusCreated || !strings.Contains(created.Body.String(), `"state":"synced"`) {
+		t.Fatalf("create synced dossier: %d %s", created.Code, created.Body.String())
+	}
+	dossiers, _ := filepath.Glob(filepath.Join(vault, "Amber Desk", "Dossiers", "*.md"))
+	nodes, _ := filepath.Glob(filepath.Join(vault, "Amber Desk", "Cases", "CASE-*-CASE-ORION", "Relations", "Nodes", "*.md"))
+	edges, _ := filepath.Glob(filepath.Join(vault, "Amber Desk", "Cases", "CASE-*-CASE-ORION", "Relations", "Edges", "*.md"))
+	if len(dossiers) != 1 || len(nodes) != 2 || len(edges) != 1 {
+		t.Fatalf("synced files: dossiers=%v nodes=%v edges=%v", dossiers, nodes, edges)
+	}
+}
+
 func TestMemoryTimelineAndMapWorkflow(t *testing.T) {
 	handler := newHandler()
 

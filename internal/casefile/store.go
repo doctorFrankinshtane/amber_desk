@@ -12,6 +12,7 @@ type Case struct {
 	Name        string   `json:"name"`
 	Status      string   `json:"status"`
 	Owner       string   `json:"owner"`
+	Objective   string   `json:"objective"`
 	UpdatedAt   string   `json:"updatedAt"`
 	Subject     Subject  `json:"subject"`
 	Events      []Event  `json:"events"`
@@ -112,6 +113,13 @@ func (s *Store) AddEvent(event Event) (Event, error) {
 	}
 	s.caseData.Events = append([]Event{event}, s.caseData.Events...)
 	return cloneEvent(event), nil
+}
+
+func (s *Store) Replace(caseData Case) Case {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.caseData = cloneCase(caseData)
+	return cloneCase(s.caseData)
 }
 
 func cloneCase(source Case) Case {

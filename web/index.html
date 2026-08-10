@@ -59,7 +59,7 @@ _______/</pre>
       <aside class="dossier panel" aria-labelledby="dossier-title">
         <div class="panel-heading">
           <div><span class="section-code">01</span><h1 id="dossier-title" data-i18n="dossier.title">SUBJECT DOSSIER</h1></div>
-          <span class="record-state" data-i18n="state.active">ACTIVE</span>
+          <button id="create-dossier" class="create-dossier-button" type="button" data-i18n="wizard.open">CREATE DOSSIER</button><span class="record-state" data-i18n="state.active">ACTIVE</span>
         </div>
         <section class="identity-block">
           <canvas id="subject-avatar" width="112" height="112" aria-label="Пиксельный портрет объекта"></canvas>
@@ -97,6 +97,7 @@ _______/</pre>
         <nav class="workspace-tabs" aria-label="Workspace views">
           <button class="active" type="button" data-work-view="timeline-view" data-i18n="tabs.timeline">TIMELINE</button>
           <button type="button" data-work-view="map-view" data-i18n="map.tab">WORLD MAP</button>
+          <button type="button" data-work-view="relations-view" data-i18n="relations.tab">RELATIONS</button>
           <button type="button" data-work-view="catalog-view" data-i18n="catalog.tab">OSINT TOOLS</button>
           <span id="timeline-backend">MEMORY</span>
         </nav>
@@ -140,6 +141,40 @@ _______/</pre>
             </aside>
           </div>
         </div>
+        <div id="relations-view" class="work-view relations-view" hidden>
+          <div class="relations-toolbar">
+            <div><button id="relation-select" class="active" type="button" data-i18n="relations.select">SELECT</button><button id="relation-add-node" type="button" data-i18n="relations.addNode">+ CARD</button><button id="relation-connect" type="button" data-i18n="relations.connect">THREAD</button><button id="relation-layout" type="button" data-i18n="relations.layout">AUTO LAYOUT</button></div>
+            <label><span aria-hidden="true">/</span><input id="relation-search" type="search" data-i18n-placeholder="relations.search" placeholder="SEARCH BOARD"></label>
+            <span id="relations-backend">MEMORY</span>
+          </div>
+          <div class="relations-workspace">
+            <div id="relations-board" aria-label="Investigation relationship board"></div>
+            <aside class="relations-inspector" aria-labelledby="relations-inspector-title">
+              <header><span class="section-code">REL</span><h2 id="relations-inspector-title" data-i18n="relations.inspector">THREAD INSPECTOR</h2></header>
+              <div id="relations-empty"><p data-i18n="relations.hint">Select a card or thread.</p></div>
+              <form id="relation-node-form" hidden>
+                <input id="relation-node-id" type="hidden">
+                <label><span data-i18n="relations.nodeType">CARD TYPE</span><select id="relation-node-type"><option value="subject">SUBJECT</option><option value="organization">ORGANIZATION</option><option value="account">ACCOUNT</option><option value="location">LOCATION</option><option value="infrastructure">INFRASTRUCTURE</option><option value="evidence">EVIDENCE</option><option value="fact">FACT</option></select></label>
+                <label><span data-i18n="relations.cardTitle">TITLE</span><input id="relation-node-title" maxlength="160" required></label>
+                <label><span data-i18n="relations.subtitle">SUBTITLE</span><input id="relation-node-subtitle" maxlength="240"></label>
+                <label><span data-i18n="relations.details">DETAILS</span><textarea id="relation-node-details" rows="4" maxlength="4000"></textarea></label>
+                <label><span data-i18n="dossier.risk">RISK</span><select id="relation-node-risk"><option value="low">LOW</option><option value="medium">MEDIUM</option><option value="high">HIGH</option></select></label>
+                <label><span data-i18n="relations.sources">SOURCE EVENT IDS</span><input id="relation-node-sources" placeholder="EV-001, EV-002"></label>
+                <div class="relations-form-actions"><button id="relation-node-delete" type="button" data-i18n="common.delete">DELETE</button><button type="submit" data-i18n="common.save">SAVE</button></div>
+              </form>
+              <form id="relation-edge-form" hidden>
+                <input id="relation-edge-id" type="hidden"><input id="relation-edge-source" type="hidden"><input id="relation-edge-target" type="hidden">
+                <div class="thread-direction"><b id="relation-edge-from">--</b><span>→</span><b id="relation-edge-to">--</b></div>
+                <label><span data-i18n="relations.relationType">RELATION TYPE</span><input id="relation-edge-label" maxlength="100" required placeholder="CONTROLS"></label>
+                <label><span data-i18n="common.confidence">CONFIDENCE</span><input id="relation-edge-confidence" type="range" min="0" max="100" value="50"><output id="relation-edge-confidence-value">50%</output></label>
+                <label><span data-i18n="relations.threadKind">THREAD KIND</span><select id="relation-edge-kind"><option value="standard">STANDARD</option><option value="critical">CRITICAL</option><option value="evidence">EVIDENCE</option></select></label>
+                <label><span data-i18n="relations.sources">SOURCE EVENT IDS</span><input id="relation-edge-sources" placeholder="EV-001, EV-002"></label>
+                <label><span data-i18n="evidence.notes">ANALYST NOTES</span><textarea id="relation-edge-note" rows="5" maxlength="4000"></textarea></label>
+                <div class="relations-form-actions"><button id="relation-edge-delete" type="button" data-i18n="common.delete">DELETE</button><button type="submit" data-i18n="common.save">SAVE</button></div>
+              </form>
+            </aside>
+          </div>
+        </div>
         <div id="catalog-view" class="work-view catalog-view" hidden>
           <div class="catalog-toolbar">
             <label><span aria-hidden="true">/</span><input id="catalog-search" type="search" autocomplete="off" placeholder="SEARCH OSINT TOOLS" data-i18n-placeholder="catalog.search"></label>
@@ -180,6 +215,26 @@ _______/</pre>
       <label><span>&gt;</span><input id="palette-input" autocomplete="off" placeholder="FILTER COMMANDS" data-i18n-placeholder="command.filter"></label>
       <div class="command-list" id="command-list"></div>
       <footer><span data-i18n="command.enterRun">ENTER RUN</span><span data-i18n="command.escClose">ESC CLOSE</span></footer>
+    </form>
+  </dialog>
+
+  <dialog id="case-wizard" class="case-wizard">
+    <form id="case-wizard-form">
+      <header><div><span class="section-code">NEW</span><div><h2 data-i18n="wizard.title">CREATE DOSSIER</h2><p id="wizard-sync-hint">LOCAL FIRST / OBSIDIAN AUTO-SYNC</p></div></div><button id="case-wizard-close" type="button" data-i18n-aria-label="common.close">X</button></header>
+      <nav class="wizard-steps" aria-label="Dossier steps"><button class="active" type="button" data-step-target="1"><b>01</b><span data-i18n="wizard.case">CASE</span></button><button type="button" data-step-target="2"><b>02</b><span data-i18n="wizard.subject">SUBJECT</span></button><button type="button" data-step-target="3"><b>03</b><span data-i18n="wizard.connections">CONNECTIONS</span></button></nav>
+      <div class="wizard-content">
+        <section data-wizard-step="1">
+          <div class="wizard-grid"><label><span data-i18n="wizard.caseName">CASE NAME *</span><input id="wizard-case-name" maxlength="120" required></label><label><span data-i18n="wizard.owner">OWNER</span><input id="wizard-owner" maxlength="100" value="LOCAL ANALYST"></label><label class="wide"><span data-i18n="wizard.objective">INVESTIGATION OBJECTIVE</span><textarea id="wizard-objective" rows="7" maxlength="4000"></textarea></label><label class="wide"><span data-i18n="wizard.tags">TAGS</span><input id="wizard-tags" maxlength="600" placeholder="PERSON, GEO, INFRASTRUCTURE"></label></div>
+        </section>
+        <section data-wizard-step="2" hidden>
+          <div class="wizard-grid"><label><span data-i18n="wizard.codename">CODENAME *</span><input id="wizard-codename" maxlength="100" required></label><label><span data-i18n="wizard.displayName">DISPLAY NAME</span><input id="wizard-display-name" maxlength="160"></label><label><span data-i18n="dossier.risk">RISK</span><select id="wizard-risk"><option value="low">LOW</option><option value="medium">MEDIUM</option><option value="high">HIGH</option></select></label><label><span data-i18n="common.confidence">CONFIDENCE</span><input id="wizard-confidence" type="range" min="0" max="100" value="40"><output id="wizard-confidence-value">40%</output></label><label><span data-i18n="dossier.location">LOCATION</span><input id="wizard-location" maxlength="240"></label><label><span data-i18n="dossier.lastSeen">LAST SEEN</span><input id="wizard-last-seen" type="datetime-local"></label><label class="wide"><span data-i18n="dossier.aliases">ALIASES</span><input id="wizard-aliases" maxlength="1200" placeholder="north_star, nstar"></label></div>
+        </section>
+        <section data-wizard-step="3" hidden>
+          <div class="wizard-repeat-heading"><div><h3 data-i18n="dossier.identifiers">IDENTIFIERS</h3><p data-i18n="wizard.identifierHint">Accounts, email, phones, domains or other known values.</p></div><button id="wizard-add-identifier" type="button">+ ID</button></div><div id="wizard-identifiers" class="wizard-repeat-list"></div>
+          <div class="wizard-repeat-heading"><div><h3 data-i18n="dossier.related">RELATED ENTITIES</h3><p data-i18n="wizard.relationHint">Initial subjects or organizations for the link board.</p></div><button id="wizard-add-relation" type="button">+ REL</button></div><div id="wizard-relations" class="wizard-repeat-list"></div>
+        </section>
+      </div>
+      <footer><output id="wizard-message"></output><div><button id="wizard-back" type="button" data-i18n="wizard.back">BACK</button><button id="wizard-next" type="button" data-i18n="wizard.next">NEXT</button><button id="wizard-submit" type="submit" data-i18n="wizard.create" hidden>CREATE AND OPEN</button></div></footer>
     </form>
   </dialog>
 
@@ -229,9 +284,12 @@ _______/</pre>
   </dialog>
 
   <script src="vendor/leaflet/leaflet.js"></script>
+  <script src="vendor/cytoscape/cytoscape.min.js"></script>
   <script src="i18n.js"></script>
   <script src="planet.js"></script>
   <script src="map.js"></script>
+  <script src="dossier-wizard.js"></script>
+  <script src="relationships.js"></script>
   <script src="catalog.js"></script>
   <script src="app.js"></script>
 </body>

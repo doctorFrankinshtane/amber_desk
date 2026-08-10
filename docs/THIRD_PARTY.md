@@ -11,6 +11,15 @@ Amber Desk vendors runtime assets so the investigation workspace and map remain 
 
 The complete Leaflet license text is included at `web/vendor/leaflet/LICENSE`.
 
+## Cytoscape.js
+
+- Version: 3.34.0
+- Project: https://js.cytoscape.org/
+- License: MIT
+- Vendored files: `web/vendor/cytoscape/`
+
+The complete Cytoscape.js license text is included at `web/vendor/cytoscape/LICENSE`.
+
 ## Natural Earth
 
 - Datasets: Natural Earth 1:50m countries, states/provinces, populated places, urban areas, lakes and rivers; Natural Earth 1:10m roads, filtered to major routes and simplified for local rendering

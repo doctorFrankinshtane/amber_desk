@@ -51,7 +51,7 @@ async function init() {
 
 function cacheElements() {
   [
-    "case-name", "case-id", "api-state", "clock", "search", "status-filter", "type-filters",
+    "case-name", "case-id", "api-state", "clock", "search", "status-filter", "type-filters", "create-dossier",
     "timeline-list", "empty-state", "visible-count", "verified-count", "evidence-content",
     "event-id", "command-input", "command-output", "open-palette", "command-palette",
     "palette-input", "command-list", "subject-codename", "subject-name", "subject-risk",
@@ -69,6 +69,8 @@ function cacheElements() {
 }
 
 function bindEvents() {
+  window.DossierWizard.init();
+  elements["create-dossier"].addEventListener("click", window.DossierWizard.open);
   elements["language-select"].addEventListener("change", (event) => changeLanguage(event.target.value));
   elements["obsidian-open"].addEventListener("click", openDossierEditor);
   elements["dossier-close"].addEventListener("click", () => elements["dossier-dialog"].close());
@@ -81,6 +83,14 @@ function bindEvents() {
   elements["event-cancel"].addEventListener("click", () => elements["event-dialog"].close());
   elements["event-form"].addEventListener("submit", createTimelineEvent);
   document.addEventListener("amber:timeline-changed", () => loadTimeline(true));
+  document.addEventListener("amber:case-created", (event) => {
+    state.caseData = event.detail.case;
+    state.selectedID = null;
+    state.timelineBackend = event.detail.sync.backend || "memory";
+    elements["timeline-backend"].textContent = state.timelineBackend.toUpperCase();
+    renderCase();
+    commandMessage(event.detail.sync.state === "sync_pending" ? "DOSSIER CREATED / SYNC PENDING" : "DOSSIER CREATED");
+  });
   window.addEventListener("beforeunload", (event) => {
     if (!state.dossierDirty) return;
     event.preventDefault();
@@ -128,6 +138,7 @@ function bindEvents() {
     } else if (event.key === "/" && !isTypingTarget(event.target)) {
       event.preventDefault();
       if (state.workView === "catalog-view") document.getElementById("catalog-search").focus();
+      else if (state.workView === "relations-view") document.getElementById("relation-search").focus();
       else elements.search.focus();
     }
   });
@@ -208,14 +219,15 @@ function switchWorkView(event) {
   state.workView = button.dataset.workView;
   document.querySelectorAll("[data-work-view]").forEach((item) => item.classList.toggle("active", item === button));
   document.querySelectorAll(".work-view").forEach((view) => { view.hidden = view.id !== state.workView; });
-  elements.shell.dataset.workspace = state.workView === "catalog-view" ? "catalog" : "case";
+  elements.shell.dataset.workspace = ["catalog-view", "relations-view"].includes(state.workView) ? "full" : "case";
   syncWorkspaceTitle();
   if (state.workView === "map-view") window.AmberMap.init();
+  if (state.workView === "relations-view") window.AmberRelations.init();
   if (state.workView === "catalog-view") window.AmberCatalog.init();
 }
 
 function syncWorkspaceTitle() {
-  const key = state.workView === "catalog-view" ? "catalog.title" : state.workView === "map-view" ? "map.title" : "timeline.title";
+  const key = state.workView === "catalog-view" ? "catalog.title" : state.workView === "relations-view" ? "relations.title" : state.workView === "map-view" ? "map.title" : "timeline.title";
   elements["timeline-title"].textContent = I18n.t(key);
 }
 
@@ -364,6 +376,8 @@ function renderCase() {
   const subject = data.subject;
   elements["case-name"].textContent = data.name;
   elements["case-id"].textContent = data.id;
+  elements["create-dossier"].hidden = subject.codename !== "UNASSIGNED";
+  document.querySelector(".record-state").hidden = subject.codename === "UNASSIGNED";
   elements["subject-codename"].textContent = subject.codename;
   elements["subject-name"].textContent = subject.displayName;
   elements["subject-risk"].textContent = I18n.t(`risk.${subject.risk}`);

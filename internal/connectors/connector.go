@@ -105,6 +105,36 @@ type MapSnapshot struct {
 	Backend string      `json:"backend"`
 }
 
+type RelationshipNode struct {
+	ID        string   `json:"id" yaml:"id"`
+	Type      string   `json:"type" yaml:"type"`
+	Title     string   `json:"title" yaml:"title"`
+	Subtitle  string   `json:"subtitle" yaml:"subtitle"`
+	Details   string   `json:"details" yaml:"details"`
+	Risk      string   `json:"risk" yaml:"risk"`
+	SourceIDs []string `json:"sourceIds" yaml:"source_ids"`
+	X         float64  `json:"x" yaml:"x"`
+	Y         float64  `json:"y" yaml:"y"`
+	Primary   bool     `json:"primary" yaml:"primary"`
+}
+
+type RelationshipEdge struct {
+	ID         string   `json:"id" yaml:"id"`
+	SourceID   string   `json:"sourceId" yaml:"source_id"`
+	TargetID   string   `json:"targetId" yaml:"target_id"`
+	Label      string   `json:"label" yaml:"label"`
+	Confidence int      `json:"confidence" yaml:"confidence"`
+	SourceIDs  []string `json:"sourceIds" yaml:"source_ids"`
+	Note       string   `json:"note" yaml:"note"`
+	Kind       string   `json:"kind" yaml:"kind"`
+}
+
+type RelationshipSnapshot struct {
+	Nodes   []RelationshipNode `json:"nodes"`
+	Edges   []RelationshipEdge `json:"edges"`
+	Backend string             `json:"backend"`
+}
+
 type Connector interface {
 	Metadata() Metadata
 	Status(context.Context) Status
@@ -129,6 +159,17 @@ type MapConnector interface {
 	DeleteMapMarker(context.Context, DossierRef, string) error
 	CreateMapRoute(context.Context, DossierRef, MapRoute) (MapRoute, error)
 	DeleteMapRoute(context.Context, DossierRef, string) error
+}
+
+type RelationshipConnector interface {
+	Connector
+	ListRelationships(context.Context, DossierRef) (RelationshipSnapshot, error)
+	CreateRelationshipNode(context.Context, DossierRef, RelationshipNode) (RelationshipNode, error)
+	UpdateRelationshipNode(context.Context, DossierRef, RelationshipNode) (RelationshipNode, error)
+	DeleteRelationshipNode(context.Context, DossierRef, string) error
+	CreateRelationshipEdge(context.Context, DossierRef, RelationshipEdge) (RelationshipEdge, error)
+	UpdateRelationshipEdge(context.Context, DossierRef, RelationshipEdge) (RelationshipEdge, error)
+	DeleteRelationshipEdge(context.Context, DossierRef, string) error
 }
 
 type Registry struct {

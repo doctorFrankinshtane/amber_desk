@@ -32,6 +32,8 @@ Extensible browser workspace for OSINT investigations. Amber Desk combines a den
 - Conflict protection when an Obsidian file changes externally
 - Local OSINT Framework catalog with category, text, pricing, and status filters
 - One-click source provenance logging into the investigation chronology
+- Three-step dossier creation wizard with local-first Obsidian synchronization
+- Detective-style relationship board with draggable clue cards and sourced threads
 
 ## Quick Start
 
@@ -66,11 +68,25 @@ Amber Desk/
     Timeline/<event-id>.md
     Map/Markers/<marker-id>.md
     Map/Routes/<route-id>.md
+    Relations/Nodes/<node-id>.md
+    Relations/Edges/<edge-id>.md
 ```
 
 Each note has versioned YAML frontmatter for Amber Desk and a readable Markdown body for editing and linking inside Obsidian. New workspaces start with an empty case and chronology. Changes in either application are picked up by the browser automatically or on reload.
 
 ![Obsidian dossier editor](docs/assets/obsidian-connector.png)
+
+## Dossier Creation
+
+New workspaces expose **Create Dossier** in the empty subject panel. The three-step wizard captures the case, primary subject, identifiers, and initial related entities. Creation always succeeds against the local memory backend first. When Obsidian is connected, Amber Desk creates the dossier and relationship notes in the vault during the same request and reports any deferred synchronization without discarding the local case.
+
+## Relationship Board
+
+Open **Relations** to arrange the investigation as a detective link board. The primary object stays visually distinct while subjects, organizations, accounts, locations, infrastructure, evidence, and facts appear as draggable clue cards. Directional threads store a label, confidence, kind, source event IDs, and an analyst note. Amber, red, and teal threads represent standard, critical, and evidence-backed relationships.
+
+The graph engine is bundled locally. Card positions and threads are stored through the relationship capability provider, using readable Markdown notes when Obsidian is connected.
+
+![Amber Desk relationship board](docs/assets/amber-relations.png)
 
 ## Investigation Map
 
@@ -118,6 +134,7 @@ See [.env.example](.env.example) for a local template.
 
 - `GET /api/health`
 - `GET /api/case`
+- `POST /api/case`
 - `GET /api/timeline`
 - `POST /api/timeline/events`
 - `PATCH /api/events/{id}/status`
@@ -129,6 +146,13 @@ See [.env.example](.env.example) for a local template.
 - `POST /api/map/routes`
 - `DELETE /api/map/routes/{id}`
 - `GET /api/catalog`
+- `GET /api/relationships`
+- `POST /api/relationships/nodes`
+- `PUT /api/relationships/nodes/{id}`
+- `DELETE /api/relationships/nodes/{id}`
+- `POST /api/relationships/edges`
+- `PUT /api/relationships/edges/{id}`
+- `DELETE /api/relationships/edges/{id}`
 - `GET /api/integrations`
 - `GET /api/integrations/{id}/dossier`
 - `PUT /api/integrations/{id}/dossier`
