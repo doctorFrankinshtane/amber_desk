@@ -33,7 +33,7 @@ func TestReadWriteDossier(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if !saved.Exists || saved.Path != "Dossiers/NS-04-NORTHSTAR.md" {
+	if !saved.Exists || saved.Path != "Dossiers/NS-04.md" {
 		t.Fatalf("unexpected saved document: %+v", saved)
 	}
 	data, err := os.ReadFile(filepath.Join(vault, filepath.FromSlash(saved.Path)))

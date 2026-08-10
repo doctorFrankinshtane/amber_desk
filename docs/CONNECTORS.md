@@ -15,9 +15,11 @@ type Connector interface {
 }
 ```
 
-Storage families are optional capability interfaces. A provider may implement `TimelineConnector`, `MapConnector`, `RelationshipConnector`, or `WorkspaceStateConnector`. The generic HTTP layer selects a connected provider by the capabilities declared in metadata and falls back to memory when no provider is available.
+Storage families are optional capability interfaces. A provider may implement `TimelineConnector`, `TimelineDeleteConnector`, `MapConnector`, `RelationshipConnector`, `WorkspaceStateConnector`, or `CaseStoreConnector`. The generic HTTP layer selects a connected provider by the capabilities declared in metadata and falls back to memory when no provider is available.
 
 `WorkspaceStateConnector` stores small opaque snapshots such as `active-case`. It keeps provider packages independent from the internal case model while allowing a workspace to survive process restarts. Providers must validate state keys, keep state local to their configured storage root, and write snapshots atomically.
+
+`CaseStoreConnector` is the multi-dossier lifecycle contract. It lists case summaries, reads and writes opaque snapshots, stores the active-case pointer, and moves complete cases to provider-local trash. `TimelineDeleteConnector` is separate from `TimelineConnector` so existing timeline providers remain source compatible when deletion is unavailable.
 
 Register the implementation in `main.go` with `connectors.NewRegistry`. The HTTP layer discovers it through the registry; connector-specific filesystem or network logic must not enter `internal/httpapi` or the browser case model.
 
@@ -30,6 +32,8 @@ Every connector must expose:
 - Explicit capabilities such as `dossier.read`, `timeline.write`, and `map.read`
 - Relationship capabilities `relationships.read` and `relationships.write` for clue cards, positions, and sourced threads
 - Workspace state capabilities `workspace.state.read` and `workspace.state.write` when the provider can restore the active workspace
+- Case lifecycle capabilities `cases.read`, `cases.write`, and `cases.delete`
+- `timeline.delete` only when event deletion uses safe provider-side semantics
 - Whether required configuration is present
 - A health state: `connected`, `unconfigured`, `offline`, or `error`
 
@@ -67,6 +71,10 @@ Generic dossier routes are exposed as:
 GET /api/integrations
 GET /api/integrations/{id}/dossier
 PUT /api/integrations/{id}/dossier
+GET /api/cases
+PUT /api/cases/active
+DELETE /api/cases/{id}
+DELETE /api/events/{id}
 ```
 
 Timeline and map providers use the shared `/api/timeline` and `/api/map` route families. Browser code never imports an Obsidian-specific API.

@@ -17,6 +17,7 @@ type Info = internal.Info
 type DossierRef = internal.DossierRef
 type Dossier = internal.Dossier
 type DossierWrite = internal.DossierWrite
+type CaseSummary = internal.CaseSummary
 type TimelineNote = internal.TimelineNote
 type TimelineEvent = internal.TimelineEvent
 type TimelineSnapshot = internal.TimelineSnapshot
@@ -28,9 +29,11 @@ type RelationshipEdge = internal.RelationshipEdge
 type RelationshipSnapshot = internal.RelationshipSnapshot
 type Connector = internal.Connector
 type TimelineConnector = internal.TimelineConnector
+type TimelineDeleteConnector = internal.TimelineDeleteConnector
 type MapConnector = internal.MapConnector
 type RelationshipConnector = internal.RelationshipConnector
 type WorkspaceStateConnector = internal.WorkspaceStateConnector
+type CaseStoreConnector = internal.CaseStoreConnector
 type Registry = internal.Registry
 
 func NewRegistry(items ...Connector) *Registry {

@@ -54,7 +54,7 @@ func New(config Config) (*Connector, error) {
 func (c *Connector) Metadata() connectors.Metadata {
 	return connectors.Metadata{
 		ID: ID, Name: "Obsidian", Description: "Markdown dossier synchronization with a local Obsidian vault",
-		Capabilities: []string{"dossier.read", "dossier.write", "timeline.read", "timeline.write", "map.read", "map.write", "relationships.read", "relationships.write", "workspace.state.read", "workspace.state.write"}, Configured: c.configured,
+		Capabilities: []string{"dossier.read", "dossier.write", "timeline.read", "timeline.write", "timeline.delete", "map.read", "map.write", "relationships.read", "relationships.write", "workspace.state.read", "workspace.state.write", "cases.read", "cases.write", "cases.delete"}, Configured: c.configured,
 	}
 }
 
@@ -156,8 +156,14 @@ func (c *Connector) dossierPath(ref connectors.DossierRef, createDirectory bool)
 	if err := ensureInside(c.vaultPath, directory); err != nil {
 		return "", "", err
 	}
-	filename := sanitize(ref.CaseID) + "-" + sanitize(ref.CaseName) + ".md"
-	path := filepath.Join(directory, filename)
+	path := filepath.Join(directory, sanitize(ref.CaseID)+".md")
+	if _, err := os.Stat(path); errors.Is(err, os.ErrNotExist) {
+		if legacy, found, findErr := findLegacyCaseEntry(directory, ref.CaseID, false); findErr != nil {
+			return "", "", findErr
+		} else if found && strings.EqualFold(filepath.Ext(legacy), ".md") {
+			path = legacy
+		}
+	}
 	if err := ensureInside(c.vaultPath, path); err != nil {
 		return "", "", err
 	}

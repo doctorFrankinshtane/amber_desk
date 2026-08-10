@@ -2,6 +2,7 @@ package obsidian_test
 
 import (
 	"context"
+	"encoding/json"
 	"os"
 	"path/filepath"
 	"strings"
@@ -10,6 +11,37 @@ import (
 	"amberdesk/internal/connectors/obsidian"
 	"amberdesk/pkg/connectors"
 )
+
+func TestCaseStoreMigratesLegacyStateAndRestoresIndex(t *testing.T) {
+	vault := t.TempDir()
+	connector, err := obsidian.New(obsidian.Config{VaultPath: vault})
+	if err != nil {
+		t.Fatal(err)
+	}
+	legacy := []byte(`{"id":"CASE-1234ABCD","name":"Legacy case","status":"active","updatedAt":"2026-08-10T10:00:00Z","subject":{"codename":"ALPHA"},"events":[],"tags":[]}`)
+	if err := connector.WriteWorkspaceState(context.Background(), "active-case", legacy); err != nil {
+		t.Fatal(err)
+	}
+	items, err := connector.ListCases(context.Background())
+	if err != nil || len(items) != 1 || items[0].ID != "CASE-1234ABCD" || !items[0].Active {
+		t.Fatalf("migrated cases: %v %+v", err, items)
+	}
+	stored, err := connector.ReadCase(context.Background(), items[0].ID)
+	if err != nil || !json.Valid(stored) {
+		t.Fatalf("migrated snapshot: %v %s", err, stored)
+	}
+	if _, err := os.Stat(filepath.Join(vault, "Amber Desk", ".state", "active-case.legacy.json")); err != nil {
+		t.Fatalf("legacy state was not retired: %v", err)
+	}
+	reopened, err := obsidian.New(obsidian.Config{VaultPath: vault})
+	if err != nil {
+		t.Fatal(err)
+	}
+	activeID, err := reopened.ActiveCaseID(context.Background())
+	if err != nil || activeID != "CASE-1234ABCD" {
+		t.Fatalf("restored active case: %q %v", activeID, err)
+	}
+}
 
 func TestTimelinePersistsAsMarkdownNotes(t *testing.T) {
 	vault := t.TempDir()
@@ -33,7 +65,7 @@ func TestTimelinePersistsAsMarkdownNotes(t *testing.T) {
 		t.Fatalf("add note: %v %+v", err, updated)
 	}
 
-	path := filepath.Join(vault, "Amber Desk", "Cases", "NS-04-NORTHSTAR", "Timeline", "EV-1.md")
+	path := filepath.Join(vault, "Amber Desk", "Cases", "NS-04", "Timeline", "EV-1.md")
 	data, err := os.ReadFile(path)
 	if err != nil || !strings.Contains(string(data), "kind: timeline_event") || !strings.Contains(string(data), "Confirmed") {
 		t.Fatalf("timeline markdown = %v %q", err, data)
@@ -97,7 +129,7 @@ func TestRelationshipsPersistAsMarkdownAndCascade(t *testing.T) {
 	if err != nil || len(snapshot.Nodes) != 2 || len(snapshot.Edges) != 1 {
 		t.Fatalf("relationship snapshot: %v %+v", err, snapshot)
 	}
-	path := filepath.Join(vault, "Amber Desk", "Cases", "CASE-001-ORION", "Relations", "Edges", "REL-1.md")
+	path := filepath.Join(vault, "Amber Desk", "Cases", "CASE-001", "Relations", "Edges", "REL-1.md")
 	data, err := os.ReadFile(path)
 	if err != nil || !strings.Contains(string(data), "kind: relationship_edge") || !strings.Contains(string(data), "CONTROLS") {
 		t.Fatalf("relationship markdown: %v %q", err, data)

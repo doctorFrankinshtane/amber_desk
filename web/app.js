@@ -13,6 +13,8 @@ const state = {
   connectorMessageError: false,
   timelineBackend: "memory",
   workView: "timeline-view",
+  cases: [],
+  casesBackend: "memory",
 };
 
 const commands = [
@@ -43,6 +45,7 @@ async function init() {
   updateClock();
   window.setInterval(updateClock, 1000);
   await Promise.all([loadCase(), loadIntegrations()]);
+  await loadCases(true);
   window.setInterval(() => {
     if (!document.hidden && state.caseData && state.timelineBackend === "obsidian") loadTimeline(true);
   }, 15000);
@@ -51,7 +54,7 @@ async function init() {
 
 function cacheElements() {
   [
-    "case-name", "case-id", "api-state", "clock", "search", "status-filter", "type-filters", "create-dossier",
+    "case-name", "case-id", "case-picker-open", "case-mobile-open", "api-state", "clock", "search", "status-filter", "type-filters", "create-dossier", "delete-dossier",
     "timeline-list", "empty-state", "visible-count", "verified-count", "evidence-content",
     "event-id", "command-input", "command-output", "open-palette", "command-palette",
     "palette-input", "command-list", "subject-codename", "subject-name", "subject-risk",
@@ -62,7 +65,9 @@ function cacheElements() {
     "dossier-content", "dossier-stats",
     "timeline-title", "timeline-backend", "timeline-add", "event-dialog", "event-form",
     "event-close", "event-cancel", "event-title", "event-type", "event-time", "event-summary",
-    "event-source", "event-confidence",
+    "event-source", "event-confidence", "case-picker", "case-picker-close", "case-picker-search",
+    "case-picker-list", "case-picker-status", "case-picker-create", "delete-case-dialog",
+    "delete-case-form", "delete-case-close", "delete-case-cancel", "delete-case-confirm", "delete-case-submit",
   ].forEach((id) => { elements[id] = document.getElementById(id); });
   elements.shell = document.querySelector(".app-shell");
   elements.evidenceTemplate = document.getElementById("evidence-template");
@@ -71,6 +76,21 @@ function cacheElements() {
 function bindEvents() {
   window.DossierWizard.init();
   elements["create-dossier"].addEventListener("click", window.DossierWizard.open);
+  elements["case-picker-open"].addEventListener("click", openCasePicker);
+  elements["case-mobile-open"].addEventListener("click", openCasePicker);
+  elements["case-picker-close"].addEventListener("click", closeCasePicker);
+  elements["case-picker-search"].addEventListener("input", renderCasePicker);
+  elements["case-picker-list"].addEventListener("click", handleCasePickerSelection);
+  elements["case-picker-create"].addEventListener("click", () => {
+    if (state.dossierDirty) { elements["case-picker-status"].textContent = I18n.t("case.switchDirty"); return; }
+    closeCasePicker(); window.DossierWizard.open();
+  });
+  elements["case-picker"].addEventListener("close", () => elements["case-picker-open"].setAttribute("aria-expanded", "false"));
+  elements["delete-dossier"].addEventListener("click", openDeleteCaseDialog);
+  elements["delete-case-close"].addEventListener("click", closeDeleteCaseDialog);
+  elements["delete-case-cancel"].addEventListener("click", closeDeleteCaseDialog);
+  elements["delete-case-confirm"].addEventListener("input", updateDeleteCaseConfirmation);
+  elements["delete-case-form"].addEventListener("submit", deleteActiveCase);
   elements["language-select"].addEventListener("change", (event) => changeLanguage(event.target.value));
   elements["obsidian-open"].addEventListener("click", openDossierEditor);
   elements["dossier-close"].addEventListener("click", () => elements["dossier-dialog"].close());
@@ -83,7 +103,7 @@ function bindEvents() {
   elements["event-cancel"].addEventListener("click", () => elements["event-dialog"].close());
   elements["event-form"].addEventListener("submit", createTimelineEvent);
   document.addEventListener("amber:timeline-changed", () => loadTimeline(true));
-  document.addEventListener("amber:case-created", (event) => {
+  document.addEventListener("amber:case-created", async (event) => {
     state.caseData = event.detail.case;
     state.selectedID = null;
     state.dossier = null;
@@ -92,6 +112,8 @@ function bindEvents() {
     state.timelineBackend = event.detail.sync.backend || "memory";
     elements["timeline-backend"].textContent = state.timelineBackend.toUpperCase();
     renderCase();
+    await loadCases(true);
+    refreshCaseModules();
     commandMessage(event.detail.sync.state === "sync_pending" ? "DOSSIER CREATED / SYNC PENDING" : "DOSSIER CREATED");
     if (elements["dossier-dialog"].open) loadDossier(false);
   });
@@ -113,6 +135,8 @@ function bindEvents() {
     renderTimeline();
   });
   elements["timeline-list"].addEventListener("click", (event) => {
+    const remove = event.target.closest("button[data-delete-event]");
+    if (remove) { deleteTimelineEvent(remove.dataset.deleteEvent); return; }
     const item = event.target.closest("button[data-event-id]");
     if (item) selectEvent(item.dataset.eventId);
   });
@@ -177,6 +201,129 @@ async function loadTimeline(silent = false) {
   } catch (error) {
     if (!silent) throw error;
   }
+}
+
+async function loadCases(silent = false) {
+  try {
+    const snapshot = await request("/api/cases", {});
+    state.cases = snapshot.cases || [];
+    state.casesBackend = snapshot.backend || "memory";
+    renderCasePicker();
+  } catch (error) {
+    if (!silent) commandMessage(error.message, true);
+  }
+}
+
+async function openCasePicker() {
+  await loadCases();
+  elements["case-picker-search"].value = "";
+  renderCasePicker();
+  elements["case-picker"].showModal();
+  elements["case-picker-open"].setAttribute("aria-expanded", "true");
+  elements["case-picker-search"].focus();
+}
+
+function closeCasePicker() {
+  if (elements["case-picker"].open) elements["case-picker"].close();
+  elements["case-picker-open"].setAttribute("aria-expanded", "false");
+}
+
+function renderCasePicker() {
+  if (!elements["case-picker-list"]) return;
+  const query = elements["case-picker-search"].value.trim().toLowerCase();
+  const items = state.cases.filter((item) => !query || `${item.id} ${item.name} ${item.subject}`.toLowerCase().includes(query));
+  elements["case-picker-status"].textContent = `${state.casesBackend.toUpperCase()} / ${items.length}`;
+  if (!items.length) {
+    elements["case-picker-list"].replaceChildren(node("p", { class: "case-picker-empty" }, I18n.t("case.empty")));
+    return;
+  }
+  elements["case-picker-list"].replaceChildren(...items.map((item) => {
+    const button = node("button", { type: "button", class: `case-picker-item${item.active ? " active" : ""}`, "data-case-id": item.id });
+    const copy = node("span");
+    copy.append(node("strong", {}, item.name), node("small", {}, `${item.subject} / ${item.id}`));
+    const updated = item.updatedAt ? new Intl.DateTimeFormat(I18n.language, { dateStyle: "short", timeStyle: "short" }).format(new Date(item.updatedAt)) : "--";
+    button.append(copy, node("span", {}, item.active ? I18n.t("state.active") : updated));
+    return button;
+  }));
+}
+
+function handleCasePickerSelection(event) {
+  const button = event.target.closest("button[data-case-id]");
+  if (button) switchCase(button.dataset.caseId);
+}
+
+async function switchCase(caseID) {
+  if (caseID === state.caseData.id) { closeCasePicker(); return; }
+  if (state.dossierDirty) { commandMessage(I18n.t("case.switchDirty"), true); return; }
+  try {
+    const selected = await request("/api/cases/active", { method: "PUT", body: JSON.stringify({ caseId: caseID, expectedCaseId: state.caseData.id }) });
+    await applyActiveCase(selected);
+    closeCasePicker();
+    commandMessage(`${selected.id} / ACTIVE`);
+  } catch (error) { commandMessage(error.message, true); }
+}
+
+async function applyActiveCase(selected) {
+  state.caseData = selected;
+  state.selectedID = null;
+  state.dossier = null;
+  state.dossierDirty = false;
+  elements["dossier-content"].value = "";
+  await loadTimeline();
+  state.selectedID = state.caseData.events[0]?.id || null;
+  await loadCases(true);
+  renderCase();
+  refreshCaseModules();
+}
+
+function refreshCaseModules() {
+  document.dispatchEvent(new CustomEvent("amber:case-switched", { detail: { case: state.caseData } }));
+}
+
+function openDeleteCaseDialog() {
+  if (state.caseData.subject.codename === "UNASSIGNED") return;
+  if (state.dossierDirty) { commandMessage(I18n.t("case.deleteDirty"), true); return; }
+  elements["delete-case-form"].reset();
+  elements["delete-case-confirm"].placeholder = state.caseData.id;
+  updateDeleteCaseConfirmation();
+  elements["delete-case-dialog"].showModal();
+  elements["delete-case-confirm"].focus();
+}
+
+function closeDeleteCaseDialog() { elements["delete-case-dialog"].close(); }
+
+function updateDeleteCaseConfirmation() {
+  elements["delete-case-submit"].disabled = elements["delete-case-confirm"].value.trim() !== state.caseData.id;
+}
+
+async function deleteActiveCase(event) {
+  event.preventDefault();
+  const caseID = state.caseData.id;
+  elements["delete-case-submit"].disabled = true;
+  try {
+    const result = await request(`/api/cases/${encodeURIComponent(caseID)}`, { method: "DELETE", body: JSON.stringify({ confirmCaseId: elements["delete-case-confirm"].value.trim(), expectedCaseId: caseID }) });
+    state.cases = result.cases || [];
+    state.casesBackend = result.backend || "memory";
+    await applyActiveCase(result.case);
+    closeDeleteCaseDialog();
+    commandMessage(I18n.t("case.deleted"));
+  } catch (error) {
+    commandMessage(error.message, true);
+    elements["delete-case-submit"].disabled = false;
+  }
+}
+
+async function deleteTimelineEvent(eventID) {
+  const event = state.caseData.events.find((item) => item.id === eventID);
+  if (!event || !window.confirm(`${I18n.t("timeline.deleteConfirm")}\n\n${event.title}`)) return;
+  try {
+    await request(`/api/events/${encodeURIComponent(eventID)}`, { method: "DELETE", body: JSON.stringify({ caseId: state.caseData.id }) });
+    state.caseData.events = state.caseData.events.filter((item) => item.id !== eventID);
+    if (state.selectedID === eventID) state.selectedID = state.caseData.events[0]?.id || null;
+    renderTimeline();
+    renderEvidence();
+    commandMessage(`${eventID} / MOVED TO TRASH`);
+  } catch (error) { commandMessage(error.message, true); }
 }
 
 function openEventDialog() {
@@ -364,6 +511,7 @@ function changeLanguage(language) {
   if (dossierState) setDossierState(dossierState);
   updateDossierStats();
   if (elements["command-palette"].open) renderCommands();
+  if (elements["case-picker"].open) renderCasePicker();
   syncWorkspaceTitle();
   if (window.AmberCatalog?.loaded) {
     window.AmberCatalog.renderCategories();
@@ -382,6 +530,7 @@ function renderCase() {
   elements["case-name"].textContent = data.name;
   elements["case-id"].textContent = data.id;
   elements["create-dossier"].hidden = subject.codename !== "UNASSIGNED";
+  elements["delete-dossier"].hidden = subject.codename === "UNASSIGNED";
   document.querySelector(".record-state").hidden = subject.codename === "UNASSIGNED";
   elements["subject-codename"].textContent = subject.codename;
   elements["subject-name"].textContent = subject.displayName;
@@ -427,6 +576,7 @@ function renderTimeline() {
   elements["empty-state"].hidden = events.length !== 0;
   elements["timeline-list"].hidden = events.length === 0;
   elements["timeline-list"].replaceChildren(...events.map((event) => {
+    const row = node("div", { class: "timeline-row" });
     const button = node("button", { type: "button", class: `timeline-item${event.id === state.selectedID ? " active" : ""}`, "data-event-id": event.id });
     const time = node("time", {}, event.time);
     time.append(node("small", {}, event.date));
@@ -435,7 +585,9 @@ function renderTimeline() {
     const score = node("span", { class: "event-score" });
     score.append(node("b", {}, `${event.confidence}%`), node("span", { class: `status-dot ${event.status}` }, I18n.t(`status.${event.status}`)));
     button.append(time, node("span", { class: "timeline-marker" }), copy, score);
-    return button;
+    const remove = node("button", { type: "button", class: "timeline-delete", "data-delete-event": event.id, title: I18n.t("common.delete"), "aria-label": `${I18n.t("common.delete")}: ${event.title}` }, "DEL");
+    row.append(button, remove);
+    return row;
   }));
 }
 

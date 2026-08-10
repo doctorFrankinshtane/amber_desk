@@ -34,7 +34,15 @@ func (c *Connector) caseDirectory(ref connectors.DossierRef, create bool, parts 
 	if info, err := os.Stat(c.vaultPath); err != nil || !info.IsDir() {
 		return "", errors.New("obsidian vault is unavailable")
 	}
-	root := filepath.Join(c.vaultPath, filepath.Dir(c.dossierDir), "Cases", sanitize(ref.CaseID+"-"+ref.CaseName))
+	casesRoot := filepath.Join(c.vaultPath, filepath.Dir(c.dossierDir), "Cases")
+	root := filepath.Join(casesRoot, sanitize(ref.CaseID))
+	if _, err := os.Stat(root); errors.Is(err, os.ErrNotExist) {
+		if legacy, found, findErr := findLegacyCaseEntry(casesRoot, ref.CaseID, true); findErr != nil {
+			return "", findErr
+		} else if found {
+			root = legacy
+		}
+	}
 	path := filepath.Join(append([]string{root}, parts...)...)
 	if create {
 		if err := os.MkdirAll(path, 0o755); err != nil {
@@ -45,6 +53,24 @@ func (c *Connector) caseDirectory(ref connectors.DossierRef, create bool, parts 
 		return "", err
 	}
 	return path, nil
+}
+
+func findLegacyCaseEntry(directory, caseID string, directoryOnly bool) (string, bool, error) {
+	entries, err := os.ReadDir(directory)
+	if errors.Is(err, os.ErrNotExist) {
+		return "", false, nil
+	}
+	if err != nil {
+		return "", false, fmt.Errorf("inspect legacy case paths: %w", err)
+	}
+	prefix := sanitize(caseID) + "-"
+	for _, entry := range entries {
+		if directoryOnly != entry.IsDir() || !strings.HasPrefix(entry.Name(), prefix) {
+			continue
+		}
+		return filepath.Join(directory, entry.Name()), true, nil
+	}
+	return "", false, nil
 }
 
 func marshalNote(value any, body string) ([]byte, error) {

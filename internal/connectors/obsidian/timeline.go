@@ -149,6 +149,27 @@ func (c *Connector) AddTimelineNote(_ context.Context, ref connectors.DossierRef
 	return event, nil
 }
 
+func (c *Connector) DeleteTimelineEvent(_ context.Context, ref connectors.DossierRef, eventID string) error {
+	path, err := c.timelinePath(ref, eventID, false)
+	if err != nil {
+		return err
+	}
+	if _, err := os.Stat(path); errors.Is(err, os.ErrNotExist) {
+		return connectors.ErrEntityAbsent
+	} else if err != nil {
+		return fmt.Errorf("inspect timeline note: %w", err)
+	}
+	trash, err := c.caseDirectory(ref, true, ".trash", "Timeline")
+	if err != nil {
+		return err
+	}
+	target := filepath.Join(trash, time.Now().UTC().Format("20060102T150405.000000000Z")+"-"+filepath.Base(path))
+	if err := os.Rename(path, target); err != nil {
+		return fmt.Errorf("trash timeline note: %w", err)
+	}
+	return nil
+}
+
 func (c *Connector) readTimelineEvent(ref connectors.DossierRef, eventID string) (connectors.TimelineEvent, error) {
 	path, err := c.timelinePath(ref, eventID, false)
 	if err != nil {

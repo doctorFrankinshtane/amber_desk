@@ -23,6 +23,7 @@ type Handler struct {
 	markers    []connectors.MapMarker
 	routes     []connectors.MapRoute
 	relationMu sync.Mutex
+	caseMu     sync.Mutex
 	nodes      []connectors.RelationshipNode
 	edges      []connectors.RelationshipEdge
 	mapTiles   MapTileConfig
@@ -44,11 +45,15 @@ func NewWithConfig(store *casefile.Store, registry *connectors.Registry, webFile
 	mux.HandleFunc("GET /api/health", h.health)
 	mux.HandleFunc("GET /api/case", h.getCase)
 	mux.HandleFunc("POST /api/case", h.createCase)
+	mux.HandleFunc("GET /api/cases", h.listCases)
+	mux.HandleFunc("PUT /api/cases/active", h.activateCase)
+	mux.HandleFunc("DELETE /api/cases/{id}", h.deleteCase)
 	mux.HandleFunc("GET /api/timeline", h.listTimeline)
 	mux.HandleFunc("POST /api/timeline/bootstrap", h.bootstrapTimeline)
 	mux.HandleFunc("POST /api/timeline/events", h.createTimelineEvent)
 	mux.HandleFunc("PATCH /api/events/{id}/status", h.setStatus)
 	mux.HandleFunc("POST /api/events/{id}/notes", h.addNote)
+	mux.HandleFunc("DELETE /api/events/{id}", h.deleteEvent)
 	mux.HandleFunc("GET /api/map", h.listMap)
 	mux.HandleFunc("POST /api/map/markers", h.createMapMarker)
 	mux.HandleFunc("PUT /api/map/markers/{id}", h.updateMapMarker)
@@ -213,6 +218,39 @@ func (h *Handler) addNote(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	writeJSON(w, http.StatusCreated, event)
+}
+
+func (h *Handler) deleteEvent(w http.ResponseWriter, r *http.Request) {
+	var input struct {
+		CaseID string `json:"caseId"`
+	}
+	if decodeJSON(r, &input) != nil || input.CaseID == "" {
+		writeError(w, http.StatusBadRequest, "caseId is required")
+		return
+	}
+	if input.CaseID != h.store.Snapshot().ID {
+		writeError(w, http.StatusConflict, "active case changed; reload before deleting the event")
+		return
+	}
+	eventID := r.PathValue("id")
+	if connector, ok := h.activeTimelineConnector(r.Context()); ok {
+		deleter, supported := connector.(connectors.TimelineDeleteConnector)
+		if !supported {
+			writeError(w, http.StatusNotImplemented, "timeline connector does not support deletion")
+			return
+		}
+		if err := deleter.DeleteTimelineEvent(r.Context(), h.dossierRef(), eventID); err != nil {
+			writeConnectorError(w, err)
+			return
+		}
+		writeJSON(w, http.StatusOK, map[string]string{"deletedId": eventID})
+		return
+	}
+	if err := h.store.DeleteEvent(eventID); errors.Is(err, casefile.ErrEventNotFound) {
+		writeError(w, http.StatusNotFound, err.Error())
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]string{"deletedId": eventID})
 }
 
 func decodeJSON(r *http.Request, target any) error {

@@ -34,6 +34,8 @@ Extensible browser workspace for OSINT investigations. Amber Desk combines a den
 - One-click source provenance logging into the investigation chronology
 - Three-step dossier creation wizard with local-first Obsidian synchronization
 - Detective-style relationship board with draggable clue cards and sourced threads
+- Multi-dossier picker with Obsidian-backed switching and restart recovery
+- Vault-local trash for complete cases and individual chronology records
 
 ## Quick Start
 
@@ -64,13 +66,20 @@ When the vault is connected, the chronology and map use Obsidian as their canoni
 ```text
 Amber Desk/
   Dossiers/
-  Cases/<case-id>-<case-name>/
+  Cases/<case-id>/
     Timeline/<event-id>.md
     Map/Markers/<marker-id>.md
     Map/Routes/<route-id>.md
     Relations/Nodes/<node-id>.md
     Relations/Edges/<edge-id>.md
+  .state/
+    cases-index.json
+    active-case-id.json
+    cases/<case-id>.json
+  .trash/<case-id>-<timestamp>/
 ```
+
+Legacy `<case-id>-<case-name>` paths are discovered by case-ID prefix and remain readable. New cases use stable ID-only paths, so renaming a display title does not move investigation data.
 
 Each note has versioned YAML frontmatter for Amber Desk and a readable Markdown body for editing and linking inside Obsidian. New workspaces start with an empty case and chronology. Changes in either application are picked up by the browser automatically or on reload.
 
@@ -78,7 +87,9 @@ Each note has versioned YAML frontmatter for Amber Desk and a readable Markdown 
 
 ## Dossier Creation
 
-New workspaces expose **Create Dossier** in the empty subject panel. The three-step wizard captures the case, primary subject, identifiers, and initial related entities. Creation always succeeds against the local memory backend first. When Obsidian is connected, Amber Desk creates the dossier and relationship notes in the vault during the same request and reports any deferred synchronization without discarding the local case.
+The case block in the header opens the dossier picker. It can search, switch, or create another dossier without discarding existing investigations. The three-step wizard captures the case, primary subject, identifiers, and initial related entities. When Obsidian is connected, Amber Desk creates the dossier, case snapshot, index entry, and relationship notes in the vault during the same request.
+
+Deleting a dossier requires typing its exact case ID. Amber Desk moves the dossier, chronology, map, relationships, and case snapshot to the vault-local `.trash` directory. Timeline records use the same local-trash model and require a separate confirmation.
 
 ## Relationship Board
 
@@ -135,10 +146,14 @@ See [.env.example](.env.example) for a local template.
 - `GET /api/health`
 - `GET /api/case`
 - `POST /api/case`
+- `GET /api/cases`
+- `PUT /api/cases/active`
+- `DELETE /api/cases/{id}`
 - `GET /api/timeline`
 - `POST /api/timeline/events`
 - `PATCH /api/events/{id}/status`
 - `POST /api/events/{id}/notes`
+- `DELETE /api/events/{id}`
 - `GET /api/map`
 - `POST /api/map/markers`
 - `PUT /api/map/markers/{id}`
@@ -157,7 +172,7 @@ See [.env.example](.env.example) for a local template.
 - `GET /api/integrations/{id}/dossier`
 - `PUT /api/integrations/{id}/dossier`
 
-The initial case and chronology are empty. When a connected provider advertises `timeline.*` or `map.*`, those capability routes persist through that provider; otherwise they use a session-only memory fallback.
+The initial case and chronology are empty when no persisted active case exists. Providers may advertise `cases.*`, `timeline.*`, `map.*`, or other optional capability families. Unsupported data families use a session-only memory fallback.
 
 ## Extensions
 

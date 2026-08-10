@@ -27,11 +27,8 @@ type createCaseResponse struct {
 }
 
 func (h *Handler) createCase(w http.ResponseWriter, r *http.Request) {
-	current := h.store.Snapshot()
-	if current.Subject.Codename != "UNASSIGNED" {
-		writeError(w, http.StatusConflict, "an active dossier already exists")
-		return
-	}
+	h.caseMu.Lock()
+	defer h.caseMu.Unlock()
 	var input casefile.Case
 	if err := decodeJSON(r, &input); err != nil {
 		writeError(w, http.StatusBadRequest, "invalid dossier")
@@ -131,7 +128,19 @@ func (h *Handler) syncCreatedCase(ctx context.Context, caseData casefile.Case, n
 	if err != nil {
 		return caseSyncStatus{State: "sync_pending", Backend: connector.Metadata().ID, Message: err.Error()}
 	}
-	if stateConnector, ok := connector.(connectors.WorkspaceStateConnector); ok {
+	if caseStore, ok := connector.(connectors.CaseStoreConnector); ok {
+		state, marshalErr := json.MarshalIndent(caseData, "", "  ")
+		if marshalErr != nil {
+			return caseSyncStatus{State: "sync_pending", Backend: connector.Metadata().ID, Path: dossier.Path, Message: marshalErr.Error()}
+		}
+		summary := connectors.CaseSummary{ID: caseData.ID, Name: caseData.Name, Subject: caseData.Subject.Codename, Status: caseData.Status, UpdatedAt: caseData.UpdatedAt}
+		if err := caseStore.WriteCase(ctx, summary, state); err != nil {
+			return caseSyncStatus{State: "sync_pending", Backend: connector.Metadata().ID, Path: dossier.Path, Message: err.Error()}
+		}
+		if err := caseStore.SetActiveCase(ctx, caseData.ID); err != nil {
+			return caseSyncStatus{State: "sync_pending", Backend: connector.Metadata().ID, Path: dossier.Path, Message: err.Error()}
+		}
+	} else if stateConnector, ok := connector.(connectors.WorkspaceStateConnector); ok {
 		state, marshalErr := json.MarshalIndent(caseData, "", "  ")
 		if marshalErr != nil {
 			return caseSyncStatus{State: "sync_pending", Backend: connector.Metadata().ID, Path: dossier.Path, Message: marshalErr.Error()}

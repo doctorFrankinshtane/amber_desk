@@ -4,6 +4,8 @@ window.AmberMap = (() => {
   const state = { map: null, mode: "select", markers: [], routes: [], layers: new Map(), routeLayers: new Map(), detailLayers: [], countryLabels: [], cityLabels: [], localBasemap: false, routeStart: null, selectedMarker: null, selectedRoute: null, loaded: false };
   const el = {};
 
+  document.addEventListener("amber:case-switched", () => { if (state.map) refresh(); });
+
   function cache() {
     ["map-modes", "map-status", "map-hint", "marker-form", "marker-id", "marker-label", "marker-lat", "marker-lng", "marker-time", "marker-description", "marker-delete", "route-inspector", "route-label", "route-delete"].forEach((id) => { el[id] = document.getElementById(id); });
   }

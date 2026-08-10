@@ -27,11 +27,12 @@
 _______/</pre>
         <pre id="ascii-planet" class="ascii-planet" aria-label="Rotating ASCII globe"></pre>
       </a>
-      <div class="case-strip">
+      <button class="case-strip" id="case-picker-open" type="button" aria-haspopup="dialog" aria-controls="case-picker">
         <span class="label" data-i18n="case.label">CASE</span>
         <strong id="case-name">LOADING...</strong>
         <span class="case-id" id="case-id">--</span>
-      </div>
+        <span class="case-picker-caret" aria-hidden="true">V</span>
+      </button>
       <label class="global-search">
         <span class="visually-hidden">Поиск по делу</span>
         <span aria-hidden="true">/</span>
@@ -50,6 +51,7 @@ _______/</pre>
     </header>
 
     <nav class="mobile-tabs" aria-label="Разделы дела">
+      <button type="button" id="case-mobile-open" data-i18n="case.label">CASE</button>
       <button type="button" data-mobile-view="dossier" data-i18n="tabs.dossier">DOSSIER</button>
       <button type="button" class="active" data-mobile-view="timeline" data-i18n="tabs.timeline">TIMELINE</button>
       <button type="button" data-mobile-view="evidence" data-i18n="tabs.evidence">EVIDENCE</button>
@@ -59,7 +61,7 @@ _______/</pre>
       <aside class="dossier panel" aria-labelledby="dossier-title">
         <div class="panel-heading">
           <div><span class="section-code">01</span><h1 id="dossier-title" data-i18n="dossier.title">SUBJECT DOSSIER</h1></div>
-          <button id="create-dossier" class="create-dossier-button" type="button" data-i18n="wizard.open">CREATE DOSSIER</button><span class="record-state" data-i18n="state.active">ACTIVE</span>
+          <div class="dossier-heading-actions"><button id="create-dossier" class="create-dossier-button" type="button" data-i18n="wizard.open">CREATE DOSSIER</button><button id="delete-dossier" class="delete-dossier-button" type="button" data-i18n="case.delete">DELETE</button><span class="record-state" data-i18n="state.active">ACTIVE</span></div>
         </div>
         <section class="identity-block">
           <canvas id="subject-avatar" width="112" height="112" aria-label="Пиксельный портрет объекта"></canvas>
@@ -215,6 +217,24 @@ _______/</pre>
       <label><span>&gt;</span><input id="palette-input" autocomplete="off" placeholder="FILTER COMMANDS" data-i18n-placeholder="command.filter"></label>
       <div class="command-list" id="command-list"></div>
       <footer><span data-i18n="command.enterRun">ENTER RUN</span><span data-i18n="command.escClose">ESC CLOSE</span></footer>
+    </form>
+  </dialog>
+
+  <dialog id="case-picker" class="case-picker-dialog">
+    <section class="case-picker-shell">
+      <header><div><span class="section-code">CASE</span><h2 data-i18n="case.pickerTitle">DOSSIER INDEX</h2></div><button type="button" id="case-picker-close" data-i18n-aria-label="common.close">X</button></header>
+      <label class="case-picker-search"><span aria-hidden="true">/</span><input id="case-picker-search" type="search" autocomplete="off" data-i18n-placeholder="case.search" placeholder="SEARCH DOSSIERS"></label>
+      <div id="case-picker-list" class="case-picker-list"></div>
+      <footer><span id="case-picker-status">--</span><button type="button" id="case-picker-create" data-i18n="case.createNew">CREATE NEW</button></footer>
+    </section>
+  </dialog>
+
+  <dialog id="delete-case-dialog" class="delete-case-dialog">
+    <form id="delete-case-form">
+      <header><div><span class="section-code">DEL</span><h2 data-i18n="case.deleteTitle">DELETE DOSSIER</h2></div><button type="button" id="delete-case-close" data-i18n-aria-label="common.close">X</button></header>
+      <p data-i18n="case.deleteWarning">The complete case will be moved to the local Obsidian trash.</p>
+      <label><span data-i18n="case.typeId">TYPE CASE ID TO CONFIRM</span><input id="delete-case-confirm" autocomplete="off" spellcheck="false"></label>
+      <footer><button type="button" id="delete-case-cancel" data-i18n="common.close">CLOSE</button><button type="submit" id="delete-case-submit" disabled data-i18n="case.deleteConfirmed">MOVE TO TRASH</button></footer>
     </form>
   </dialog>
 

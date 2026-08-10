@@ -3,6 +3,7 @@ package httpapi_test
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"net/http"
 	"net/http/httptest"
 	"os"
@@ -89,9 +90,9 @@ func TestCreateDossierSeedsRelationshipBoard(t *testing.T) {
 	if edge.Code != http.StatusBadRequest {
 		t.Fatalf("invalid edge status = %d", edge.Code)
 	}
-	duplicate := request(t, handler, http.MethodPost, "/api/case", body)
-	if duplicate.Code != http.StatusConflict {
-		t.Fatalf("second active dossier status = %d", duplicate.Code)
+	second := request(t, handler, http.MethodPost, "/api/case", body)
+	if second.Code != http.StatusCreated {
+		t.Fatalf("second dossier status = %d", second.Code)
 	}
 }
 
@@ -109,15 +110,77 @@ func TestCreateDossierSynchronizesObsidian(t *testing.T) {
 		t.Fatalf("create synced dossier: %d %s", created.Code, created.Body.String())
 	}
 	dossiers, _ := filepath.Glob(filepath.Join(vault, "Amber Desk", "Dossiers", "*.md"))
-	nodes, _ := filepath.Glob(filepath.Join(vault, "Amber Desk", "Cases", "CASE-*-CASE-ORION", "Relations", "Nodes", "*.md"))
-	edges, _ := filepath.Glob(filepath.Join(vault, "Amber Desk", "Cases", "CASE-*-CASE-ORION", "Relations", "Edges", "*.md"))
+	nodes, _ := filepath.Glob(filepath.Join(vault, "Amber Desk", "Cases", "CASE-*", "Relations", "Nodes", "*.md"))
+	edges, _ := filepath.Glob(filepath.Join(vault, "Amber Desk", "Cases", "CASE-*", "Relations", "Edges", "*.md"))
 	if len(dossiers) != 1 || len(nodes) != 2 || len(edges) != 1 {
 		t.Fatalf("synced files: dossiers=%v nodes=%v edges=%v", dossiers, nodes, edges)
 	}
-	stateConnector := any(provider).(connectors.WorkspaceStateConnector)
-	state, err := stateConnector.ReadWorkspaceState(context.Background(), "active-case")
+	caseStore := any(provider).(connectors.CaseStoreConnector)
+	activeID, err := caseStore.ActiveCaseID(context.Background())
+	if err != nil {
+		t.Fatal(err)
+	}
+	state, err := caseStore.ReadCase(context.Background(), activeID)
 	if err != nil || !strings.Contains(string(state), `"name": "CASE ORION"`) {
 		t.Fatalf("persisted active case: %v %s", err, state)
+	}
+}
+
+func TestObsidianCaseSwitchAndTrashWorkflow(t *testing.T) {
+	vault := t.TempDir()
+	provider, err := obsidian.New(obsidian.Config{VaultPath: vault})
+	if err != nil {
+		t.Fatal(err)
+	}
+	web := fstest.MapFS{"index.html": {Data: []byte("Amber Desk")}}
+	handler := httpapi.New(casefile.NewStore(casefile.BlankCase()), connectors.NewRegistry(provider), web)
+	firstResponse := request(t, handler, http.MethodPost, "/api/case", `{"name":"FIRST","subject":{"codename":"ALPHA","risk":"low","confidence":60,"aliases":[],"identifiers":[],"relations":[]},"tags":[]}`)
+	var first struct {
+		Case casefile.Case `json:"case"`
+	}
+	decode(t, firstResponse, &first)
+	eventResponse := request(t, handler, http.MethodPost, "/api/timeline/events", `{"title":"First event","type":"identity","confidence":70}`)
+	var event connectors.TimelineEvent
+	decode(t, eventResponse, &event)
+	secondResponse := request(t, handler, http.MethodPost, "/api/case", `{"name":"SECOND","subject":{"codename":"BRAVO","risk":"medium","confidence":50,"aliases":[],"identifiers":[],"relations":[]},"tags":[]}`)
+	var second struct {
+		Case casefile.Case `json:"case"`
+	}
+	decode(t, secondResponse, &second)
+
+	list := request(t, handler, http.MethodGet, "/api/cases", "")
+	if list.Code != http.StatusOK || !strings.Contains(list.Body.String(), first.Case.ID) || !strings.Contains(list.Body.String(), second.Case.ID) {
+		t.Fatalf("case list: %d %s", list.Code, list.Body.String())
+	}
+	switchBody := `{"caseId":"` + first.Case.ID + `","expectedCaseId":"` + second.Case.ID + `"}`
+	switched := request(t, handler, http.MethodPut, "/api/cases/active", switchBody)
+	if switched.Code != http.StatusOK || !strings.Contains(switched.Body.String(), `"name":"FIRST"`) {
+		t.Fatalf("switch case: %d %s", switched.Code, switched.Body.String())
+	}
+	deletedEvent := request(t, handler, http.MethodDelete, "/api/events/"+event.ID, `{"caseId":"`+first.Case.ID+`"}`)
+	if deletedEvent.Code != http.StatusOK {
+		t.Fatalf("delete event: %d %s", deletedEvent.Code, deletedEvent.Body.String())
+	}
+	deleteBody := `{"confirmCaseId":"` + first.Case.ID + `","expectedCaseId":"` + first.Case.ID + `"}`
+	deletedCase := request(t, handler, http.MethodDelete, "/api/cases/"+first.Case.ID, deleteBody)
+	if deletedCase.Code != http.StatusOK || !strings.Contains(deletedCase.Body.String(), second.Case.ID) {
+		t.Fatalf("delete case: %d %s", deletedCase.Code, deletedCase.Body.String())
+	}
+	trash, _ := filepath.Glob(filepath.Join(vault, "Amber Desk", ".trash", first.Case.ID+"-*"))
+	if len(trash) != 1 {
+		t.Fatalf("case trash entries = %v", trash)
+	}
+	stale := request(t, handler, http.MethodPut, "/api/cases/active", `{"caseId":"`+second.Case.ID+`","expectedCaseId":"`+first.Case.ID+`"}`)
+	if stale.Code != http.StatusConflict {
+		t.Fatalf("stale switch = %d %s", stale.Code, stale.Body.String())
+	}
+	deleteLast := `{"confirmCaseId":"` + second.Case.ID + `","expectedCaseId":"` + second.Case.ID + `"}`
+	deletedLast := request(t, handler, http.MethodDelete, "/api/cases/"+second.Case.ID, deleteLast)
+	if deletedLast.Code != http.StatusOK || !strings.Contains(deletedLast.Body.String(), `"codename":"UNASSIGNED"`) {
+		t.Fatalf("delete final case: %d %s", deletedLast.Code, deletedLast.Body.String())
+	}
+	if _, err := provider.ActiveCaseID(context.Background()); !errors.Is(err, connectors.ErrEntityAbsent) {
+		t.Fatalf("active case after final delete = %v", err)
 	}
 }
 

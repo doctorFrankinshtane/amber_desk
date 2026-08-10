@@ -51,6 +51,15 @@ type DossierWrite struct {
 	ExpectedModifiedAt string
 }
 
+type CaseSummary struct {
+	ID        string `json:"id"`
+	Name      string `json:"name"`
+	Subject   string `json:"subject"`
+	Status    string `json:"status"`
+	UpdatedAt string `json:"updatedAt"`
+	Active    bool   `json:"active"`
+}
+
 type TimelineNote struct {
 	Text      string `json:"text" yaml:"text"`
 	CreatedAt string `json:"createdAt" yaml:"created_at"`
@@ -152,6 +161,11 @@ type TimelineConnector interface {
 	AddTimelineNote(context.Context, DossierRef, string, TimelineNote) (TimelineEvent, error)
 }
 
+type TimelineDeleteConnector interface {
+	Connector
+	DeleteTimelineEvent(context.Context, DossierRef, string) error
+}
+
 type MapConnector interface {
 	Connector
 	ListMap(context.Context, DossierRef) (MapSnapshot, error)
@@ -179,6 +193,18 @@ type WorkspaceStateConnector interface {
 	Connector
 	ReadWorkspaceState(context.Context, string) ([]byte, error)
 	WriteWorkspaceState(context.Context, string, []byte) error
+}
+
+// CaseStoreConnector owns case discovery and lifecycle while treating the
+// core snapshot as opaque JSON.
+type CaseStoreConnector interface {
+	Connector
+	ListCases(context.Context) ([]CaseSummary, error)
+	ReadCase(context.Context, string) ([]byte, error)
+	WriteCase(context.Context, CaseSummary, []byte) error
+	SetActiveCase(context.Context, string) error
+	ActiveCaseID(context.Context) (string, error)
+	TrashCase(context.Context, string) (string, error)
 }
 
 type Registry struct {

@@ -115,6 +115,18 @@ func (s *Store) AddEvent(event Event) (Event, error) {
 	return cloneEvent(event), nil
 }
 
+func (s *Store) DeleteEvent(eventID string) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	for i := range s.caseData.Events {
+		if s.caseData.Events[i].ID == eventID {
+			s.caseData.Events = append(s.caseData.Events[:i], s.caseData.Events[i+1:]...)
+			return nil
+		}
+	}
+	return ErrEventNotFound
+}
+
 func (s *Store) Replace(caseData Case) Case {
 	s.mu.Lock()
 	defer s.mu.Unlock()

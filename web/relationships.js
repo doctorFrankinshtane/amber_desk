@@ -10,6 +10,13 @@ window.AmberRelations = (() => {
     else { state.cy.resize(); state.cy.fit(undefined, 36); }
   }
 
+  async function refresh() {
+    state.loaded = false;
+    state.snapshot = { nodes: [], edges: [], backend: "memory" };
+    state.linkSource = null;
+    if (state.initialized) await load();
+  }
+
   function cache() {
     ["relations-board", "relations-backend", "relation-select", "relation-add-node", "relation-connect", "relation-layout", "relation-search", "relations-empty", "relation-node-form", "relation-node-id", "relation-node-type", "relation-node-title", "relation-node-subtitle", "relation-node-details", "relation-node-risk", "relation-node-sources", "relation-node-delete", "relation-edge-form", "relation-edge-id", "relation-edge-source", "relation-edge-target", "relation-edge-from", "relation-edge-to", "relation-edge-label", "relation-edge-confidence", "relation-edge-confidence-value", "relation-edge-kind", "relation-edge-sources", "relation-edge-note", "relation-edge-delete"].forEach((id) => { el[id] = document.getElementById(id); });
   }
@@ -156,5 +163,6 @@ window.AmberRelations = (() => {
   function nodeTitle(id) { return state.snapshot.nodes.find((node) => node.id === id)?.title || id; }
   function csv(value) { return value.split(",").map((item) => item.trim()).filter(Boolean); }
   function clamp(value) { return Math.max(0, Math.min(1, value)); }
-  return { init, get loaded() { return state.loaded; } };
+  document.addEventListener("amber:case-switched", refresh);
+  return { init, refresh, get loaded() { return state.loaded; } };
 })();

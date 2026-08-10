@@ -49,7 +49,21 @@ func main() {
 		log.Fatalf("configure obsidian connector: %v", err)
 	}
 	initialCase := casefile.BlankCase()
-	if stateConnector, ok := any(obsidianConnector).(connectors.WorkspaceStateConnector); ok {
+	if caseStore, ok := any(obsidianConnector).(connectors.CaseStoreConnector); ok {
+		if activeID, activeErr := caseStore.ActiveCaseID(context.Background()); activeErr == nil {
+			data, stateErr := caseStore.ReadCase(context.Background(), activeID)
+			if stateErr == nil {
+				if decodeErr := json.Unmarshal(data, &initialCase); decodeErr != nil {
+					log.Printf("ignore invalid persisted case state: %v", decodeErr)
+					initialCase = casefile.BlankCase()
+				}
+			} else {
+				log.Printf("load persisted case state: %v", stateErr)
+			}
+		} else if !errors.Is(activeErr, connectors.ErrEntityAbsent) && !errors.Is(activeErr, connectors.ErrNotConfigured) {
+			log.Printf("load active case: %v", activeErr)
+		}
+	} else if stateConnector, ok := any(obsidianConnector).(connectors.WorkspaceStateConnector); ok {
 		if data, stateErr := stateConnector.ReadWorkspaceState(context.Background(), "active-case"); stateErr == nil {
 			if decodeErr := json.Unmarshal(data, &initialCase); decodeErr != nil {
 				log.Printf("ignore invalid persisted case state: %v", decodeErr)
