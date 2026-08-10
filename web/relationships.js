@@ -45,13 +45,13 @@ window.AmberRelations = (() => {
     ];
     state.cy = cytoscape({ container: el["relations-board"], elements, layout: { name: "preset", fit: true, padding: 45 }, minZoom: .35, maxZoom: 2.2, wheelSensitivity: .18,
       style: [
-        { selector: "node", style: { width: 154, height: 78, shape: "rectangle", "background-color": "#120d08", "border-width": 1, "border-color": "#6d4820", label: "data(cardLabel)", color: "#ffd98c", "font-family": "Cascadia Mono, Consolas, monospace", "font-size": 8, "text-wrap": "wrap", "text-max-width": 136, "text-valign": "center", "text-halign": "center", "overlay-opacity": 0 } },
-        { selector: "node.primary", style: { width: 182, height: 96, "background-color": "#f5b94e", "border-width": 2, "border-color": "#ffd98c", color: "#0c0906", "font-size": 10 } },
+        { selector: "node", style: { width: 174, height: 92, shape: "rectangle", "background-color": "#120d08", "border-width": 1, "border-color": "#6d4820", label: "data(cardLabel)", color: "#ffd98c", "font-family": "Cascadia Mono, Consolas, monospace", "font-size": 10, "text-wrap": "wrap", "text-max-width": 156, "text-valign": "center", "text-halign": "center", "overlay-opacity": 0 } },
+        { selector: "node.primary", style: { width: 202, height: 112, "background-color": "#f5b94e", "border-width": 2, "border-color": "#ffd98c", color: "#0c0906", "font-size": 12 } },
         { selector: 'node[type = "account"]', style: { "border-color": "#6fd8c5" } },
         { selector: 'node[type = "evidence"]', style: { "border-color": "#ff735f" } },
         { selector: "node.high-risk", style: { "border-color": "#ff735f", "border-width": 2 } },
         { selector: "node:selected", style: { "border-color": "#ffd98c", "border-width": 3, "shadow-blur": 12, "shadow-color": "#f5b94e", "shadow-opacity": .5 } },
-        { selector: "edge", style: { width: 2, "line-color": "#c77d2a", "target-arrow-color": "#c77d2a", "target-arrow-shape": "triangle", "curve-style": "bezier", label: "data(threadLabel)", color: "#d38b35", "font-family": "Cascadia Mono, Consolas, monospace", "font-size": 7, "text-background-color": "#080604", "text-background-opacity": 1, "text-background-padding": 3, "text-rotation": "autorotate", "overlay-opacity": 0 } },
+        { selector: "edge", style: { width: 2, "line-color": "#c77d2a", "target-arrow-color": "#c77d2a", "target-arrow-shape": "triangle", "curve-style": "bezier", label: "data(threadLabel)", color: "#d38b35", "font-family": "Cascadia Mono, Consolas, monospace", "font-size": 9, "text-background-color": "#080604", "text-background-opacity": 1, "text-background-padding": 4, "text-rotation": "autorotate", "overlay-opacity": 0 } },
         { selector: 'edge[kind = "critical"]', style: { "line-color": "#ff735f", "target-arrow-color": "#ff735f", color: "#ff735f" } },
         { selector: 'edge[kind = "evidence"]', style: { "line-color": "#6fd8c5", "target-arrow-color": "#6fd8c5", color: "#6fd8c5", "line-style": "dashed" } },
         { selector: "edge:selected", style: { width: 4, "z-index": 20 } },

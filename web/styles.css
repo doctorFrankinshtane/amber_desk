@@ -356,6 +356,114 @@ button:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-
   .case-wizard { width: 100vw; height: 100svh; }.case-wizard form { grid-template-rows: 54px 45px minmax(0, 1fr) auto; }.wizard-grid { grid-template-columns: 1fr; }.wizard-grid .wide { grid-column: auto; }.wizard-repeat-row.relation-row { grid-template-columns: 92px minmax(0, 1fr) 72px 29px; }.case-wizard form > footer { min-height: 48px; }.case-wizard footer output { font-size: 6px; }.case-wizard footer button { min-width: 68px; }
 }
 
+/* Balanced readability scale: denser than a conventional dashboard, but legible at arm's length. */
+body { font-size: 14px; }
+.system-state small, .section-code, .record-state, .event-id,
+.timeline-stats, .timeline-tabs button, .timeline-tabs .backend-state,
+.filterbar button, .filterbar select, .map-toolbar .map-status,
+.catalog-toolbar > span, .catalog-tool-meta b, .catalog-path,
+.catalog-badges span, #catalog-detail h4, .catalog-source-url,
+.relations-toolbar button, .relations-toolbar > span, .relations-inspector label,
+.case-wizard header p, .wizard-steps button b, .case-wizard footer output,
+.status-badge, .notes-list time, .palette-shell footer,
+.dossier-editor > footer { font-size: 9px; }
+
+.label, .language-picker select, .vault-button, .panel-heading h1,
+.confidence dt, .data-section h3, .data-section header span,
+.identifier dt, .relation small, .relation em, .timeline-item small,
+.event-card small, .event-score, .map-inspector h2, .map-form-actions button,
+#route-delete, .catalog-toolbar select, .catalog-categories h2,
+.catalog-results h2, .catalog-inspector h2, .catalog-results > header span,
+#catalog-categories button, #catalog-categories button b,
+.catalog-tool small, .catalog-actions button, .catalog-actions a,
+.relations-inspector h2, .thread-direction b, .relations-form-actions button,
+.wizard-steps button, .wizard-grid label, .wizard-repeat-heading button,
+.case-wizard footer button, .event-dialog label, .event-dialog footer button,
+.type-code, .indicator-list li, .notes-list .no-notes, .note-form button,
+.evidence-actions button, .commandbar output, .commandbar button,
+.command-option span, .dossier-editor header p, .editor-status > span,
+.editor-toolbar button { font-size: 10px; }
+
+.system-state b, .system-state time, .identity-block .risk,
+.confidence dd, .identifier dd, .relation b, .timeline-item time,
+.event-card strong, .map-inspector input, .map-inspector textarea,
+#route-inspector p, .catalog-tool strong, .catalog-placeholder,
+.relations-inspector input, .relations-inspector select,
+.relations-inspector textarea, .wizard-repeat-heading h3,
+.event-dialog h2, .note-form textarea, .command-option b { font-size: 11px; }
+
+.panel-heading h1, .case-wizard h2, .palette-shell h2 { font-size: 13px; }
+.identity-block h2 { font-size: 16px; }
+.evidence-title { font-size: 18px; }
+.evidence-summary, #catalog-detail section p { font-size: 13px; }
+
+.language-picker select, .vault-button { height: 34px; }
+.global-search { height: 36px; }
+.workspace-tabs { min-height: 39px; }
+.workspace-tabs button { min-height: 38px; font-size: 10px; line-height: 1.2; }
+.timeline-tabs, .filterbar { min-height: 36px; }
+.segmented button, .status-filter select { min-height: 34px; }
+.map-view, .catalog-view, .relations-view { grid-template-rows: 46px minmax(0, 1fr); }
+.map-toolbar, .catalog-toolbar, .relations-toolbar { min-height: 46px; }
+.map-inspector { width: 240px; }
+.map-inspector > header, .relations-inspector > header { min-height: 46px; }
+.map-form-actions button, #route-delete, .relations-form-actions button,
+.catalog-actions button, .catalog-actions a, .event-dialog footer button,
+.evidence-actions button { min-height: 36px; }
+
+.amber-country-label { font-size: 9px; }
+.amber-city-label { width: 135px !important; font-size: 9px; }
+.amber-map-icon span { width: 32px; height: 32px; font-size: 10px; }
+.amber-map-icon span:before { top: 15px; }
+.amber-map-icon span:after { left: 15px; }
+.amber-object-label, .amber-route-label { font-size: 9px !important; }
+
+.catalog-layout { grid-template-columns: 250px minmax(340px, 1fr) minmax(330px, 390px); }
+#catalog-categories button { min-height: 38px; padding: 8px 10px; }
+.catalog-tool { min-height: 60px; padding: 10px 11px; }
+#catalog-detail h3 { font-size: 17px; }
+.relations-workspace { grid-template-columns: minmax(0, 1fr) 280px; }
+.relations-toolbar button { min-width: 96px; }
+
+.case-wizard form { grid-template-rows: 60px 52px minmax(0, 1fr) 54px; }
+.case-wizard header button, .editor-status button { width: 34px; height: 34px; }
+.wizard-steps button { grid-template-columns: 32px 1fr; }
+.wizard-grid input, .wizard-grid select, .wizard-grid textarea,
+.wizard-repeat-row input, .wizard-repeat-row select { min-height: 38px; font-size: 12px; }
+.wizard-repeat-heading button { height: 34px; }
+.case-wizard footer button { min-width: 104px; }
+.event-dialog input, .event-dialog select, .event-dialog textarea { font-size: 12px; }
+.dossier-editor h2 { font-size: 14px; }
+.markdown-editor textarea { font-size: 14px; }
+
+@media (max-width: 880px) {
+  .map-workspace { grid-template-columns: minmax(0, 1fr) 230px; }
+  .catalog-layout { grid-template-columns: 210px minmax(280px, 1fr) minmax(280px, 340px); }
+  .relations-workspace { grid-template-columns: minmax(0, 1fr) 250px; }
+}
+
+@media (max-width: 520px) {
+  .vault-button { font-size: 9px; }
+  .mobile-tabs button, .workspace-tabs button { font-size: 9px; }
+  .workspace-tabs { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); }
+  .workspace-tabs button { width: 100%; padding: 0 3px; overflow-wrap: anywhere; }
+  .panel-heading h1 { font-size: 12px; }
+  .commandbar button { font-size: 9px; }
+  .filterbar { gap: 5px; padding-inline: 6px; }
+  .filterbar > .segmented { flex: 1 1 0; width: 0; }
+  .segmented button { min-width: 34px; }
+  .timeline-tools { flex: 0 0 auto; gap: 3px; }
+  .status-filter { gap: 3px; }
+  .status-filter select { width: 62px; }
+  .map-workspace, .relations-workspace { grid-template-columns: 1fr; }
+  .catalog-layout { grid-template-columns: 120px minmax(0, 1fr); grid-template-rows: minmax(250px, 1fr) 270px; }
+  .catalog-inspector { grid-column: 1 / -1; }
+  .relations-workspace { grid-template-rows: minmax(300px, 1fr) 280px; }
+  .map-inspector { width: auto; }
+  .case-wizard footer output { font-size: 9px; }
+  .case-wizard footer button { min-width: 74px; }
+}
+
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after { scroll-behavior: auto !important; animation: none !important; transition: none !important; }
 }
