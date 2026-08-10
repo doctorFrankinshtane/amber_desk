@@ -234,6 +234,8 @@ Use the `EN` / `RU` selector in the header. The selection is stored in browser `
 
 On desktop, use the chevrons beside **INVESTIGATION CHRONOLOGY** to hide or restore the left dossier panel and right evidence inspector independently. These preferences are also stored in browser `localStorage`. On narrow screens, use the `DOSSIER`, `TIMELINE`, and `EVIDENCE` tabs instead.
 
+Amber Desk uses brief Terminal Sequence transitions only for newly created records, generated results, dialogs, and system messages. Existing data, filters, search, and the command palette update immediately. The interface follows the operating system or browser `prefers-reduced-motion` setting and replaces movement with a short opacity signal.
+
 ## 13. Privacy boundaries
 
 Fully local during normal use:

@@ -21,6 +21,8 @@ window.AmberCatalog = (() => {
       populateFilters();
       renderCategories();
       render();
+      AmberMotion.revealList(el["catalog-tools"].children, { limit: 5, axis: "x" });
+      AmberMotion.reveal(el["catalog-detail"], { axis: "x", duration: 200 });
     } catch (error) {
       setLoading(`CATALOG ERROR / ${error.message}`);
     }
@@ -136,10 +138,10 @@ window.AmberCatalog = (() => {
       const response = await fetch("/api/timeline/events", { method: "POST", headers: { "Content-Type": "application/json", Accept: "application/json" }, body: JSON.stringify({ occurredAt: now.toISOString(), time: now.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit", hour12: false }), date: now.toLocaleDateString("en-GB", { day: "2-digit", month: "short" }).toUpperCase(), type: "tool", title: `Tool selected: ${tool.name}`, summary: `${tool.path.join(" / ")}. ${tool.bestFor || tool.description || "OSINT source selected for investigation."}`, source: "OSINT Framework", sourceUrl: tool.url, confidence: 50, status: "pending", fingerprint: `CATALOG:${state.snapshot.metadata.version.slice(0, 12)}:${tool.id}`, indicators: [tool.url], notes: [] }) });
       const payload = await response.json();
       if (!response.ok) throw new Error(payload.error || `API ${response.status}`);
-      button.textContent = I18n.t("catalog.logged");
+      AmberMotion.typeText(button, I18n.t("catalog.logged"));
       document.dispatchEvent(new CustomEvent("amber:timeline-changed", { detail: payload }));
     } catch (error) {
-      button.textContent = `ERROR / ${error.message}`;
+      AmberMotion.typeText(button, `ERROR / ${error.message}`, { tone: "error" });
     } finally {
       window.setTimeout(() => { button.disabled = false; button.textContent = I18n.t("catalog.log"); }, 1800);
     }
@@ -152,7 +154,7 @@ window.AmberCatalog = (() => {
     parent.append(section);
   }
 
-  function setLoading(message) { el["catalog-tools"].replaceChildren(node("p", { class: "catalog-placeholder" }, message)); }
+  function setLoading(message) { const placeholder = node("p", { class: "catalog-placeholder" }); el["catalog-tools"].replaceChildren(placeholder); AmberMotion.typeText(placeholder, message); }
   function uniqueValues(items, field) { return [...new Set(items.map((item) => item[field]).filter(Boolean))].sort(); }
   function option(value) { return node("option", { value }, value.toUpperCase()); }
   function node(tag, attributes = {}, text = "") { const element = document.createElement(tag); Object.entries(attributes).forEach(([name, value]) => { if (name === "class") element.className = value; else element.setAttribute(name, value); }); if (text !== "") element.textContent = text; return element; }

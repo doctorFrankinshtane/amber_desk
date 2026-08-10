@@ -260,12 +260,14 @@ window.AmberMap = (() => {
   async function saveMarker(event) {
     event.preventDefault();
     const marker = formMarker();
+    const created = !marker.id;
     try {
       const saved = marker.id ? await request(`/api/map/markers/${encodeURIComponent(marker.id)}`, { method: "PUT", body: JSON.stringify(marker) }) : await request("/api/map/markers", { method: "POST", body: JSON.stringify(marker) });
       state.selectedMarker = saved;
       setMode("select");
       await refresh();
       selectMarker(saved);
+      if (created) AmberMotion.markGenerated(state.layers.get(saved.id)?.getElement());
     } catch (error) { setStatus(`ERROR / ${error.message}`, true); }
   }
 
@@ -286,10 +288,11 @@ window.AmberMap = (() => {
 
   async function createRoute(fromMarkerId, toMarkerId) {
     try {
-      await request("/api/map/routes", { method: "POST", body: JSON.stringify({ fromMarkerId, toMarkerId, label: "", startedAt: "", endedAt: "", notes: "" }) });
+      const created = await request("/api/map/routes", { method: "POST", body: JSON.stringify({ fromMarkerId, toMarkerId, label: "", startedAt: "", endedAt: "", notes: "" }) });
       state.routeStart = null;
       setMode("select");
       await refresh();
+      AmberMotion.pulse(state.routeLayers.get(created.id)?.getElement());
     } catch (error) { setStatus(`ERROR / ${error.message}`, true); }
   }
 
@@ -318,7 +321,7 @@ window.AmberMap = (() => {
     return payload;
   }
 
-  function setStatus(message, error = false) { el["map-status"].textContent = message; el["map-status"].classList.toggle("error", error); }
+  function setStatus(message, error = false) { el["map-status"].classList.toggle("error", error); AmberMotion.typeText(el["map-status"], message, { tone: error ? "error" : "ok" }); }
   function round(value) { return Math.round(value * 100000) / 100000; }
   function localDateTime(date) { const shifted = new Date(date.getTime() - date.getTimezoneOffset() * 60000); return shifted.toISOString().slice(0, 16); }
   function escapeHTML(value) { const element = document.createElement("span"); element.textContent = String(value || ""); return element.innerHTML; }

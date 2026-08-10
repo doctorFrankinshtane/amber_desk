@@ -41,6 +41,7 @@ window.AmberChecklist = (() => {
 
   async function load() {
     try {
+      const firstLoad = !state.snapshot;
       const caseResponse = await api("/api/case");
       state.caseID = caseResponse.id;
       el["investigation-checklist"].hidden = caseResponse.subject?.codename === "UNASSIGNED";
@@ -48,6 +49,7 @@ window.AmberChecklist = (() => {
       state.snapshot = await api("/api/checklist");
       el["checklist-error"].hidden = true; el["checklist-phases"].hidden = false;
       render();
+      if (firstLoad) AmberMotion.revealList(el["checklist-phases"].querySelectorAll("details"), { limit: 4, axis: "x" });
     } catch (error) {
       el["checklist-error"].hidden = false; el["checklist-phases"].hidden = true; notify(`${I18n.t("checklist.error")} / ${error.message}`, true);
     }
@@ -132,7 +134,7 @@ window.AmberChecklist = (() => {
   }
 
   async function mutate(url, options) {
-    try { const result = await api(url, options); if (result) state.snapshot = result; else await load(); render(); notify(I18n.t("checklist.saved")); return true; }
+    try { const result = await api(url, options); if (result) state.snapshot = result; else await load(); render(); AmberMotion.pulse(el["checklist-percent"]); notify(I18n.t("checklist.saved")); return true; }
     catch (error) { notify(`${I18n.t("checklist.error")} / ${error.message}`, true); return false; }
   }
 
@@ -149,7 +151,7 @@ window.AmberChecklist = (() => {
   function text(tag, className, value) { const node = document.createElement(tag); if (className) node.className = className; node.textContent = value; return node; }
   function option(value, label) { const node = document.createElement("option"); node.value = value; node.textContent = label; return node; }
   function closeDialog() { if (el["checklist-dialog"].open) el["checklist-dialog"].close(); }
-  function notify(message, error = false) { const output = document.getElementById("command-output"); if (output) { output.textContent = message; output.classList.toggle("error", error); } }
+  function notify(message, error = false) { const output = document.getElementById("command-output"); if (output) AmberMotion.typeText(output, message, { tone: error ? "error" : "ok" }); }
 
   return { init, load, render };
 })();

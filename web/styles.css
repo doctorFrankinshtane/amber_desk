@@ -14,6 +14,11 @@
   --font: "Cascadia Mono", "Lucida Console", Consolas, monospace;
   --header-h: 62px;
   --command-h: 43px;
+  --motion-fast: 100ms;
+  --motion-enter: 160ms;
+  --motion-standard: 200ms;
+  --ease-out: cubic-bezier(0.23, 1, 0.32, 1);
+  --ease-in-out: cubic-bezier(0.77, 0, 0.175, 1);
 }
 
 * { box-sizing: border-box; }
@@ -514,6 +519,50 @@ button:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-
   .delete-case-dialog { width: calc(100vw - 16px); }
   .dossier-heading-actions { gap: 3px; }
   .record-state { display: none; }
+}
+
+/* Terminal Sequence motion system. Keep stable investigation data still. */
+button:not(:disabled) { transition: transform var(--motion-fast) var(--ease-out); }
+button:not(:disabled):active { transform: scale(.97); }
+
+dialog {
+  opacity: 0;
+  transform: translateY(7px) scale(.98);
+  transition:
+    opacity var(--motion-standard) var(--ease-out),
+    transform var(--motion-standard) var(--ease-out),
+    overlay var(--motion-standard) allow-discrete,
+    display var(--motion-standard) allow-discrete;
+}
+dialog[open] { opacity: 1; transform: translateY(0) scale(1); }
+dialog::backdrop {
+  opacity: 0;
+  transition:
+    opacity var(--motion-standard) var(--ease-out),
+    overlay var(--motion-standard) allow-discrete,
+    display var(--motion-standard) allow-discrete;
+}
+dialog[open]::backdrop { opacity: 1; }
+.command-palette, .command-palette::backdrop { opacity: 1; transform: none; transition: none; }
+@starting-style {
+  dialog[open] { opacity: 0; transform: translateY(7px) scale(.98); }
+  .command-palette[open] { opacity: 1; transform: none; }
+  dialog[open]::backdrop { opacity: 0; }
+  .command-palette[open]::backdrop { opacity: 1; }
+}
+
+[data-motion-tone="error"] { color: var(--alert) !important; }
+[data-motion-tone="ok"] { color: var(--verified); }
+[aria-busy="true"]::after { content: "_"; display: inline; margin-left: 2px; color: var(--ink-bright); animation: motion-cursor 500ms steps(1, end) infinite; }
+.timeline-row[data-motion-generated="true"] { box-shadow: inset 3px 0 var(--verified); }
+.relation-attachment-item[data-motion-generated="true"],
+.sherlock-result[data-motion-generated="true"] { box-shadow: inset 2px 0 var(--verified); }
+
+@keyframes motion-cursor { 50% { opacity: 0; } }
+
+@media (prefers-reduced-motion: reduce) {
+  dialog, dialog::backdrop { transform: none !important; }
+  [aria-busy="true"]::after { animation: none !important; content: ""; }
 }
 
 /* Balanced readability scale: denser than a conventional dashboard, but legible at arm's length. */

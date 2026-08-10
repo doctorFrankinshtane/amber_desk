@@ -112,7 +112,7 @@ function bindEvents() {
   elements["event-close"].addEventListener("click", () => elements["event-dialog"].close());
   elements["event-cancel"].addEventListener("click", () => elements["event-dialog"].close());
   elements["event-form"].addEventListener("submit", createTimelineEvent);
-  document.addEventListener("amber:timeline-changed", () => loadTimeline(true));
+  document.addEventListener("amber:timeline-changed", (event) => loadTimeline(true, event.detail?.id || ""));
   document.addEventListener("amber:case-created", async (event) => {
     state.caseData = event.detail.case;
     state.selectedID = null;
@@ -192,22 +192,23 @@ async function loadCase() {
     elements["api-state"].textContent = I18n.t("state.synced");
     enableControls();
     renderCase();
+    AmberMotion.reveal(document.querySelector(".identity-block"), { axis: "x", duration: 200 });
     commandMessage("WORKSPACE READY");
   } catch (error) {
     elements["api-state"].textContent = I18n.t("state.offline");
-    elements["command-output"].textContent = `CONNECTION ERROR / ${error.message}`;
+    commandMessage(`CONNECTION ERROR / ${error.message}`, true);
     elements["evidence-content"].innerHTML = '<div class="loading-block"><b>API UNAVAILABLE</b><span></span><small>START WITH: go run .</small></div>';
   }
 }
 
-async function loadTimeline(silent = false) {
+async function loadTimeline(silent = false, generatedID = "") {
   try {
     const snapshot = await request("/api/timeline", {});
     state.caseData.events = snapshot.events || [];
     state.timelineBackend = snapshot.backend || "memory";
     elements["timeline-backend"].textContent = state.timelineBackend.toUpperCase();
     if (state.selectedID && !state.caseData.events.some((event) => event.id === state.selectedID)) state.selectedID = state.caseData.events[0]?.id || null;
-    if (silent) { renderTimeline(); renderEvidence(); }
+    if (silent) { renderTimeline(generatedID); renderEvidence(); }
   } catch (error) {
     if (!silent) throw error;
   }
@@ -283,6 +284,7 @@ async function applyActiveCase(selected) {
   state.selectedID = state.caseData.events[0]?.id || null;
   await loadCases(true);
   renderCase();
+  AmberMotion.reveal(document.querySelector(".timeline"), { axis: "x", duration: 200 });
   refreshCaseModules();
 }
 
@@ -368,7 +370,7 @@ async function createTimelineEvent(event) {
     state.caseData.events.unshift(created);
     state.selectedID = created.id;
     elements["event-dialog"].close();
-    renderTimeline();
+    renderTimeline(created.id);
     renderEvidence();
     commandMessage(`${created.id} / EVENT ADDED`);
   } catch (error) { commandMessage(error.message, true); }
@@ -377,6 +379,7 @@ async function createTimelineEvent(event) {
 function switchWorkView(event) {
   const button = event.target.closest("button[data-work-view]");
   if (!button) return;
+  const changed = state.workView !== button.dataset.workView;
   state.workView = button.dataset.workView;
   document.querySelectorAll("[data-work-view]").forEach((item) => item.classList.toggle("active", item === button));
   document.querySelectorAll(".work-view").forEach((view) => { view.hidden = view.id !== state.workView; });
@@ -385,6 +388,7 @@ function switchWorkView(event) {
   if (state.workView === "map-view") window.AmberMap.init();
   if (state.workView === "relations-view") window.AmberRelations.init();
   if (state.workView === "catalog-view") window.AmberCatalog.init();
+  if (changed) AmberMotion.reveal(document.getElementById(state.workView), { axis: "x", duration: 160 });
 }
 
 function syncWorkspaceTitle() {
@@ -547,6 +551,7 @@ function togglePanel(name) {
   state.panels[key] = !state.panels[key];
   localStorage.setItem("amberdesk.panels", JSON.stringify(state.panels));
   applyPanelPreferences();
+  if (!state.panels[key]) AmberMotion.reveal(document.getElementById(`${name}-panel`), { axis: "x", duration: 160 });
   window.dispatchEvent(new Event("resize"));
 }
 
@@ -619,7 +624,7 @@ function filteredEvents() {
   });
 }
 
-function renderTimeline() {
+function renderTimeline(generatedID = "") {
   const events = filteredEvents();
   elements["visible-count"].textContent = pad(events.length);
   elements["verified-count"].textContent = pad(state.caseData.events.filter((event) => event.status === "verified").length);
@@ -639,6 +644,7 @@ function renderTimeline() {
     row.append(button, remove);
     return row;
   }));
+  if (generatedID) AmberMotion.markGenerated(elements["timeline-list"].querySelector(`[data-event-id="${CSS.escape(generatedID)}"]`)?.closest(".timeline-row"));
 }
 
 function renderEvidence() {
@@ -704,6 +710,8 @@ async function setSelectedStatus(status) {
     replaceEvent(updated);
     renderTimeline();
     renderEvidence();
+    AmberMotion.pulse(elements["timeline-list"].querySelector(`[data-event-id="${CSS.escape(event.id)}"] .status-dot`));
+    AmberMotion.pulse(elements["evidence-content"].querySelector(".status-badge"));
     commandMessage(`${event.id} / STATUS ${status.toUpperCase()}`);
   } catch (error) {
     commandMessage(error.message, true);
@@ -722,6 +730,7 @@ async function addNote(event) {
     });
     replaceEvent(updated);
     renderEvidence();
+    AmberMotion.markGenerated(elements["evidence-content"].querySelector(".notes-list li:last-child"));
     commandMessage(`${updated.id} / NOTE ADDED`);
   } catch (error) {
     commandMessage(error.message, true);
@@ -816,8 +825,7 @@ async function copyFingerprint(value) {
 }
 
 function commandMessage(message, isError = false) {
-  elements["command-output"].textContent = message;
-  elements["command-output"].style.color = isError ? "var(--alert)" : "var(--verified)";
+  AmberMotion.typeText(elements["command-output"], message, { tone: isError ? "error" : "ok" });
 }
 
 function updateClock() {

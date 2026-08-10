@@ -40,6 +40,7 @@ window.DossierWizard = (() => {
     el["wizard-back"].hidden = step === 1;
     el["wizard-next"].hidden = step === 3;
     el["wizard-submit"].hidden = step !== 3;
+    AmberMotion.reveal(document.querySelector(`[data-wizard-step="${step}"]`), { axis: "x", duration: 160 });
   }
 
   function next() {
@@ -56,6 +57,7 @@ window.DossierWizard = (() => {
     row.querySelector("select").value = value.type || "username";
     row.querySelector("input").value = value.value || "";
     el["wizard-identifiers"].append(row);
+    AmberMotion.markGenerated(row);
     row.querySelector("input").focus();
   }
 
@@ -68,6 +70,7 @@ window.DossierWizard = (() => {
     selects[1].value = value.risk || "low";
     row.querySelector("input").value = value.name || "";
     el["wizard-relations"].append(row);
+    AmberMotion.markGenerated(row);
     row.querySelector("input").focus();
   }
 
@@ -85,16 +88,16 @@ window.DossierWizard = (() => {
       },
     };
     el["wizard-submit"].disabled = true;
-    el["wizard-message"].textContent = "CREATING DOSSIER...";
+    AmberMotion.typeText(el["wizard-message"], "CREATING DOSSIER...");
     try {
       const response = await fetch("/api/case", { method: "POST", headers: { "Content-Type": "application/json", Accept: "application/json" }, body: JSON.stringify(payload) });
       const result = await response.json();
       if (!response.ok) throw new Error(result.error || `API ${response.status}`);
-      el["wizard-message"].textContent = result.sync.state === "synced" ? "DOSSIER CREATED / OBSIDIAN SYNCED" : result.sync.state === "sync_pending" ? "DOSSIER CREATED / SYNC PENDING" : "DOSSIER CREATED / LOCAL";
+      AmberMotion.typeText(el["wizard-message"], result.sync.state === "synced" ? "DOSSIER CREATED / OBSIDIAN SYNCED" : result.sync.state === "sync_pending" ? "DOSSIER CREATED / SYNC PENDING" : "DOSSIER CREATED / LOCAL");
       document.dispatchEvent(new CustomEvent("amber:case-created", { detail: result }));
       window.setTimeout(() => { el["case-wizard"].close(); el["case-wizard-form"].reset(); el["wizard-identifiers"].replaceChildren(); el["wizard-relations"].replaceChildren(); el["wizard-confidence-value"].textContent = "40%"; }, 500);
     } catch (error) {
-      el["wizard-message"].textContent = `ERROR / ${error.message}`;
+      AmberMotion.typeText(el["wizard-message"], `ERROR / ${error.message}`, { tone: "error" });
     } finally { el["wizard-submit"].disabled = false; }
   }
 

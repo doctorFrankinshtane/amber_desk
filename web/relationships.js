@@ -135,20 +135,22 @@ window.AmberRelations = (() => {
   }
 
   function showEmpty() { state.selectedNodeID = ""; el["relations-empty"].hidden = false; el["relation-node-form"].hidden = true; el["relation-edge-form"].hidden = true; }
-  function boardMessage(text) { showEmpty(); el["relations-empty"].querySelector("p").textContent = text; }
+  function boardMessage(text) { showEmpty(); AmberMotion.typeText(el["relations-empty"].querySelector("p"), text, { tone: text.includes("ERROR") ? "error" : "ok" }); }
 
   async function saveNode(event) {
     event.preventDefault(); const id = el["relation-node-id"].value; const existing = state.snapshot.nodes.find((node) => node.id === id);
     const payload = { id, type: el["relation-node-type"].value, title: el["relation-node-title"].value.trim(), subtitle: el["relation-node-subtitle"].value.trim(), details: el["relation-node-details"].value.trim(), risk: el["relation-node-risk"].value, sourceIds: csv(el["relation-node-sources"].value), x: existing?.x ?? state.draftPosition?.x ?? .5, y: existing?.y ?? state.draftPosition?.y ?? .5, primary: existing?.primary || false, coverAttachmentId: existing?.coverAttachmentId || "", attachmentCount: existing?.attachmentCount || 0 };
     const saved = await api(id ? `/api/relationships/nodes/${id}` : "/api/relationships/nodes", { method: id ? "PUT" : "POST", body: JSON.stringify(payload) });
-    if (!saved) return; if (id) state.snapshot.nodes[state.snapshot.nodes.findIndex((node) => node.id === id)] = saved; else state.snapshot.nodes.push(saved); state.draftPosition = null; build(); state.cy.getElementById(saved.id).select(); showNode(saved);
+    if (!saved) return; if (id) state.snapshot.nodes[state.snapshot.nodes.findIndex((node) => node.id === id)] = saved; else state.snapshot.nodes.push(saved); state.draftPosition = null; build(); const savedNode = state.cy.getElementById(saved.id); savedNode.select(); showNode(saved);
+    if (!id && !AmberMotion.reduced()) { savedNode.style("opacity", 0); savedNode.animate({ style: { opacity: 1 } }, { duration: 200, easing: "cubic-bezier(0.23, 1, 0.32, 1)" }); }
   }
 
   async function saveEdge(event) {
     event.preventDefault(); const id = el["relation-edge-id"].value;
     const payload = { id, sourceId: el["relation-edge-source"].value, targetId: el["relation-edge-target"].value, label: el["relation-edge-label"].value.trim(), confidence: Number(el["relation-edge-confidence"].value), kind: el["relation-edge-kind"].value, sourceIds: csv(el["relation-edge-sources"].value), note: el["relation-edge-note"].value.trim() };
     const saved = await api(id ? `/api/relationships/edges/${id}` : "/api/relationships/edges", { method: id ? "PUT" : "POST", body: JSON.stringify(payload) });
-    if (!saved) return; if (id) state.snapshot.edges[state.snapshot.edges.findIndex((edge) => edge.id === id)] = saved; else state.snapshot.edges.push(saved); build(); state.cy.getElementById(saved.id).select(); showEdge(saved);
+    if (!saved) return; if (id) state.snapshot.edges[state.snapshot.edges.findIndex((edge) => edge.id === id)] = saved; else state.snapshot.edges.push(saved); build(); const savedEdge = state.cy.getElementById(saved.id); savedEdge.select(); showEdge(saved);
+    if (!id && !AmberMotion.reduced()) { savedEdge.style("opacity", 0); savedEdge.animate({ style: { opacity: 1 } }, { duration: 200, easing: "cubic-bezier(0.23, 1, 0.32, 1)" }); }
   }
 
   async function deleteNode() {
@@ -163,16 +165,16 @@ window.AmberRelations = (() => {
     state.snapshot.edges = state.snapshot.edges.filter((edge) => edge.id !== id); build(); showEmpty();
   }
 
-  async function loadAttachments(nodeID) {
+  async function loadAttachments(nodeID, animate = false) {
     el["relation-attachment-status"].textContent = "LOADING...";
     const items = await api(`/api/relationships/nodes/${encodeURIComponent(nodeID)}/attachments`, { method: "GET" });
     if (!items || el["relation-node-id"].value !== nodeID) return;
     state.attachments.set(nodeID, items);
     updateAttachmentCount(nodeID, items.length);
-    renderAttachmentList(nodeID, items);
+    renderAttachmentList(nodeID, items, animate);
   }
 
-  function renderAttachmentList(nodeID, items) {
+  function renderAttachmentList(nodeID, items, animate = false) {
     const node = state.snapshot.nodes.find((entry) => entry.id === nodeID);
     el["relation-attachment-status"].textContent = items.length ? "" : "NO DOCUMENTS";
     el["relation-attachment-count"].textContent = `${items.length} / 20`;
@@ -191,6 +193,7 @@ window.AmberRelations = (() => {
       const remove = document.createElement("button"); remove.type = "button"; remove.textContent = "×"; remove.title = `Remove ${item.filename}`; remove.setAttribute("aria-label", `Remove ${item.filename}`); remove.addEventListener("click", () => removeAttachment(nodeID, item));
       row.append(preview, info, cover, download, remove); return row;
     }));
+    if (animate) AmberMotion.revealList(el["relation-attachment-list"].children, { limit: 6, axis: "x" });
   }
 
   async function uploadAttachments(event) {
@@ -200,13 +203,13 @@ window.AmberRelations = (() => {
     if (!caseResponse.ok) { boardMessage(`BOARD ERROR / ${caseData.error || caseResponse.status}`); return; }
     el["relation-attachment-add"].disabled = true;
     for (let index = 0; index < files.length; index += 1) {
-      el["relation-attachment-status"].textContent = `UPLOADING ${index + 1} / ${files.length}`;
+      AmberMotion.typeText(el["relation-attachment-status"], `UPLOADING ${index + 1} / ${files.length}`);
       const body = new FormData(); body.append("caseId", caseData.id); body.append("file", files[index], files[index].name);
       const created = await api(`/api/relationships/nodes/${encodeURIComponent(nodeID)}/attachments`, { method: "POST", body });
       if (!created) break;
     }
     await syncRelationshipNode(nodeID);
-    await loadAttachments(nodeID);
+    await loadAttachments(nodeID, true);
     notifyRelationshipChange(nodeID);
   }
 
@@ -334,6 +337,7 @@ window.AmberRelations = (() => {
     el["sherlock-open"].textContent = I18n.t("common.close");
     el["sherlock-launch"].hidden = Boolean(state.sherlock.scan);
     el["sherlock-console"].hidden = !state.sherlock.scan;
+    AmberMotion.reveal(state.sherlock.scan ? el["sherlock-console"] : el["sherlock-launch"], { axis: "x", duration: 160 });
     if (!state.sherlock.scan) el["sherlock-username"].focus();
   }
 
@@ -346,8 +350,8 @@ window.AmberRelations = (() => {
 
   function prepareSherlockScan() {
     const username = el["sherlock-username"].value.trim();
-    if (!/^[A-Za-z0-9._-]{1,100}$/.test(username)) { el["sherlock-message"].textContent = "Use 1-100 letters, digits, dots, underscores, or hyphens."; return; }
-    if (!state.sherlock.status?.ready) { el["sherlock-message"].textContent = state.sherlock.status?.message || "Sherlock runtime is unavailable."; return; }
+    if (!/^[A-Za-z0-9._-]{1,100}$/.test(username)) { AmberMotion.typeText(el["sherlock-message"], "Use 1-100 letters, digits, dots, underscores, or hyphens.", { tone: "error" }); return; }
+    if (!state.sherlock.status?.ready) { AmberMotion.typeText(el["sherlock-message"], state.sherlock.status?.message || "Sherlock runtime is unavailable.", { tone: "error" }); return; }
     el["sherlock-confirm-username"].textContent = username;
     el["sherlock-confirm-runtime"].textContent = I18n.t("sherlock.externalRuntime", { version: state.sherlock.status.version });
     el["sherlock-confirm"].showModal();
@@ -360,10 +364,10 @@ window.AmberRelations = (() => {
     try {
       const caseData = await fetchJSON("/api/case");
       const scan = await fetchJSON("/api/tools/sherlock/scans", { method: "POST", body: JSON.stringify({ caseId: caseData.id, sourceNodeId: source.id, username, externalTrafficConfirmed: true }) });
-      state.sherlock.scan = scan; state.sherlock.selected.clear();
+      state.sherlock.selected.clear();
       el["sherlock-confirm"].close(); el["sherlock-launch"].hidden = true; el["sherlock-console"].hidden = false;
-      updateSherlockScan(scan); connectSherlockStream(scan.id);
-    } catch (error) { el["sherlock-message"].textContent = `SCAN ERROR / ${error.message}`; el["sherlock-confirm"].close(); }
+      updateSherlockScan(scan); AmberMotion.reveal(el["sherlock-console"], { axis: "x", duration: 200 }); connectSherlockStream(scan.id);
+    } catch (error) { AmberMotion.typeText(el["sherlock-message"], `SCAN ERROR / ${error.message}`, { tone: "error" }); el["sherlock-confirm"].close(); }
     finally { el["sherlock-confirm-start"].disabled = false; }
   }
 
@@ -375,19 +379,22 @@ window.AmberRelations = (() => {
       if (["completed", "failed", "cancelled"].includes(scan.state)) stream.close();
     });
     ["progress", "log", "completed", "failed", "cancelled"].forEach((type) => stream.addEventListener(type, (event) => {
-      const payload = JSON.parse(event.data); if (payload.message) el["sherlock-log"].textContent = payload.message;
+      const payload = JSON.parse(event.data); if (payload.message) { if (["completed", "failed", "cancelled"].includes(type)) AmberMotion.typeText(el["sherlock-log"], payload.message, { tone: type === "failed" ? "error" : "ok" }); else el["sherlock-log"].textContent = payload.message; }
       if (payload.checked !== undefined) { el["sherlock-checked"].textContent = payload.checked; el["sherlock-claimed"].textContent = payload.claimed || 0; el["sherlock-errors"].textContent = payload.errors || 0; }
     }));
-    stream.onerror = () => { if (["queued", "running"].includes(state.sherlock.scan?.state)) el["sherlock-log"].textContent = "STREAM INTERRUPTED / RECONNECTING"; };
+    stream.onerror = () => { if (["queued", "running"].includes(state.sherlock.scan?.state)) AmberMotion.typeText(el["sherlock-log"], "STREAM INTERRUPTED / RECONNECTING", { tone: "error" }); };
   }
 
   function updateSherlockScan(scan) {
+    const previousState = state.sherlock.scan?.state;
     state.sherlock.scan = scan;
     el["sherlock-checked"].textContent = scan.checked || 0; el["sherlock-claimed"].textContent = scan.claimed || 0; el["sherlock-errors"].textContent = scan.errors || 0;
     el["sherlock-state"].textContent = scan.state.toUpperCase();
-    el["sherlock-log"].textContent = scan.error || (scan.state === "completed" ? `${scan.claimed} CANDIDATES / MANUAL REVIEW REQUIRED` : `SCANNING @${scan.username}`);
+    const message = scan.error || (scan.state === "completed" ? `${scan.claimed} CANDIDATES / MANUAL REVIEW REQUIRED` : `SCANNING @${scan.username}`);
+    if (previousState !== scan.state) AmberMotion.typeText(el["sherlock-log"], message, { tone: scan.error ? "error" : "ok" }); else el["sherlock-log"].textContent = message;
     el["sherlock-cancel"].disabled = !["queued", "running"].includes(scan.state);
     renderSherlockResults();
+    if (previousState !== "completed" && scan.state === "completed") AmberMotion.revealList(el["sherlock-results"].children, { limit: 6, axis: "x" });
   }
 
   function renderSherlockResults() {
@@ -417,8 +424,8 @@ window.AmberRelations = (() => {
 
   async function cancelSherlockScan() {
     if (!state.sherlock.scan) return;
-    try { await fetchJSON(`/api/tools/sherlock/scans/${encodeURIComponent(state.sherlock.scan.id)}`, { method: "DELETE", body: "{}" }); el["sherlock-log"].textContent = "CANCELLATION REQUESTED"; }
-    catch (error) { el["sherlock-log"].textContent = `CANCEL ERROR / ${error.message}`; }
+    try { await fetchJSON(`/api/tools/sherlock/scans/${encodeURIComponent(state.sherlock.scan.id)}`, { method: "DELETE", body: "{}" }); AmberMotion.typeText(el["sherlock-log"], "CANCELLATION REQUESTED"); }
+    catch (error) { AmberMotion.typeText(el["sherlock-log"], `CANCEL ERROR / ${error.message}`, { tone: "error" }); }
   }
 
   async function importSherlockResults() {
@@ -427,9 +434,9 @@ window.AmberRelations = (() => {
     try {
       const caseData = await fetchJSON("/api/case");
       const imported = await fetchJSON(`/api/tools/sherlock/scans/${encodeURIComponent(scan.id)}/import`, { method: "POST", body: JSON.stringify({ caseId: caseData.id, resultIds: [...state.sherlock.selected] }) });
-      el["sherlock-log"].textContent = `IMPORTED ${imported.selected} PROFILES / REPORT ATTACHED`;
+      AmberMotion.typeText(el["sherlock-log"], `IMPORTED ${imported.selected} PROFILES / REPORT ATTACHED`);
       state.sherlock.selected.clear(); await load(); document.dispatchEvent(new CustomEvent("amber:timeline-changed", { detail: imported }));
-    } catch (error) { el["sherlock-log"].textContent = `IMPORT ERROR / ${error.message}`; updateSherlockImportButton(); }
+    } catch (error) { AmberMotion.typeText(el["sherlock-log"], `IMPORT ERROR / ${error.message}`, { tone: "error" }); updateSherlockImportButton(); }
   }
 
   async function fetchJSON(url, options = {}) {
