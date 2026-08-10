@@ -23,6 +23,7 @@ type Handler struct {
 	markers      []connectors.MapMarker
 	routes       []connectors.MapRoute
 	relationMu   sync.Mutex
+	coverMu      sync.Mutex
 	caseMu       sync.Mutex
 	nodes        []connectors.RelationshipNode
 	edges        []connectors.RelationshipEdge
@@ -69,6 +70,7 @@ func NewWithConfig(store *casefile.Store, registry *connectors.Registry, webFile
 	mux.HandleFunc("POST /api/relationships/nodes", h.createRelationshipNode)
 	mux.HandleFunc("PUT /api/relationships/nodes/{id}", h.updateRelationshipNode)
 	mux.HandleFunc("DELETE /api/relationships/nodes/{id}", h.deleteRelationshipNode)
+	mux.HandleFunc("PUT /api/relationships/nodes/{id}/cover", h.setRelationshipCover)
 	mux.HandleFunc("GET /api/relationships/nodes/{id}/attachments", h.listRelationshipAttachments)
 	mux.HandleFunc("POST /api/relationships/nodes/{id}/attachments", h.createRelationshipAttachment)
 	mux.HandleFunc("GET /api/relationships/nodes/{id}/attachments/{attachmentId}", h.downloadRelationshipAttachment)

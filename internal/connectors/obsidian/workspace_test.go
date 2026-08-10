@@ -178,6 +178,19 @@ func TestRelationshipAttachmentRoundTripAndTrash(t *testing.T) {
 	if err != nil || snapshot.Nodes[0].AttachmentCount != 1 {
 		t.Fatalf("attachment count: %v %+v", err, snapshot)
 	}
+	coverNode := snapshot.Nodes[0]
+	coverNode.CoverAttachmentID = stored.ID
+	if _, err := connector.UpdateRelationshipNode(ctx, ref, coverNode); err != nil {
+		t.Fatal(err)
+	}
+	reopened, err := obsidian.New(obsidian.Config{VaultPath: vault})
+	if err != nil {
+		t.Fatal(err)
+	}
+	reopenedSnapshot, err := reopened.ListRelationships(ctx, ref)
+	if err != nil || reopenedSnapshot.Nodes[0].CoverAttachmentID != stored.ID {
+		t.Fatalf("cover round trip: %v %+v", err, reopenedSnapshot)
+	}
 	if _, err := connector.StoreRelationshipAttachment(ctx, ref, connectors.RelationshipAttachment{ID: "ATT-2", NodeID: "NODE-1", Filename: "../escape.txt"}, content); !errors.Is(err, connectors.ErrInvalidFilename) {
 		t.Fatalf("traversal filename = %v", err)
 	}

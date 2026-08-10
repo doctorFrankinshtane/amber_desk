@@ -1,10 +1,16 @@
 package httpapi
 
 import (
+	"bytes"
 	"context"
 	"crypto/sha256"
+	"encoding/binary"
 	"encoding/hex"
 	"errors"
+	"image"
+	_ "image/gif"
+	_ "image/jpeg"
+	_ "image/png"
 	"io"
 	"mime"
 	"net/http"
@@ -56,6 +62,8 @@ func (h *Handler) createRelationshipNode(w http.ResponseWriter, r *http.Request)
 		return
 	}
 	node.ID = newID("NODE")
+	node.CoverAttachmentID = ""
+	node.AttachmentCount = 0
 	if err := normalizeRelationshipNode(&node); err != nil {
 		writeError(w, http.StatusBadRequest, err.Error())
 		return
@@ -82,6 +90,14 @@ func (h *Handler) updateRelationshipNode(w http.ResponseWriter, r *http.Request)
 		return
 	}
 	node.ID = r.PathValue("id")
+	existing, err := h.relationshipNode(r.Context(), node.ID)
+	if err != nil {
+		writeConnectorError(w, err)
+		return
+	}
+	node.Primary = existing.Primary
+	node.CoverAttachmentID = existing.CoverAttachmentID
+	node.AttachmentCount = existing.AttachmentCount
 	if err := normalizeRelationshipNode(&node); err != nil {
 		writeError(w, http.StatusBadRequest, err.Error())
 		return
@@ -99,9 +115,6 @@ func (h *Handler) updateRelationshipNode(w http.ResponseWriter, r *http.Request)
 	defer h.relationMu.Unlock()
 	for i := range h.nodes {
 		if h.nodes[i].ID == node.ID {
-			if h.nodes[i].Primary {
-				node.Primary = true
-			}
 			h.nodes[i] = node
 			writeJSON(w, http.StatusOK, node)
 			return
@@ -215,12 +228,10 @@ func (h *Handler) createRelationshipAttachment(w http.ResponseWriter, r *http.Re
 		writeConnectorError(w, connectors.ErrAttachmentLarge)
 		return
 	}
-	mediaType := header.Header.Get("Content-Type")
-	parsedMediaType, _, mediaErr := mime.ParseMediaType(mediaType)
-	if mediaErr != nil || parsedMediaType == "application/octet-stream" {
-		mediaType = http.DetectContentType(content)
-	} else {
-		mediaType = parsedMediaType
+	mediaType := http.DetectContentType(content)
+	if isRelationshipCoverImage(mediaType) && !validRelationshipImage(content, mediaType) {
+		writeError(w, http.StatusBadRequest, "invalid image content")
+		return
 	}
 	attachment := connectors.RelationshipAttachment{ID: newID("ATT"), NodeID: nodeID, Filename: header.Filename, MediaType: mediaType, CreatedAt: time.Now().UTC().Format(time.RFC3339Nano)}
 	if connector, ok := h.activeAttachmentConnector(r.Context()); ok {
@@ -229,12 +240,16 @@ func (h *Handler) createRelationshipAttachment(w http.ResponseWriter, r *http.Re
 			writeConnectorError(w, storeErr)
 			return
 		}
+		if coverErr := h.assignFirstRelationshipCover(r.Context(), nodeID, created); coverErr != nil {
+			writeConnectorError(w, coverErr)
+			return
+		}
 		writeJSON(w, http.StatusCreated, created)
 		return
 	}
 	h.attachmentMu.Lock()
-	defer h.attachmentMu.Unlock()
 	if len(h.attachments[nodeID]) >= connectors.MaxRelationshipAttachmentsPerNode {
+		h.attachmentMu.Unlock()
 		writeConnectorError(w, connectors.ErrAttachmentLimit)
 		return
 	}
@@ -244,6 +259,11 @@ func (h *Handler) createRelationshipAttachment(w http.ResponseWriter, r *http.Re
 		h.attachments[nodeID] = make(map[string]memoryAttachment)
 	}
 	h.attachments[nodeID][attachment.ID] = memoryAttachment{Metadata: attachment, Content: append([]byte{}, content...)}
+	h.attachmentMu.Unlock()
+	if coverErr := h.assignFirstRelationshipCover(r.Context(), nodeID, attachment); coverErr != nil {
+		writeConnectorError(w, coverErr)
+		return
+	}
 	writeJSON(w, http.StatusCreated, attachment)
 }
 
@@ -268,7 +288,11 @@ func (h *Handler) downloadRelationshipAttachment(w http.ResponseWriter, r *http.
 		writeConnectorError(w, err)
 		return
 	}
-	disposition := mime.FormatMediaType("attachment", map[string]string{"filename": metadata.Filename})
+	dispositionType := "attachment"
+	if r.URL.Query().Get("inline") == "1" && isRelationshipCoverImage(metadata.MediaType) {
+		dispositionType = "inline"
+	}
+	disposition := mime.FormatMediaType(dispositionType, map[string]string{"filename": metadata.Filename})
 	if parsed, _, parseErr := mime.ParseMediaType(metadata.MediaType); parseErr == nil {
 		metadata.MediaType = parsed
 	} else {
@@ -276,6 +300,7 @@ func (h *Handler) downloadRelationshipAttachment(w http.ResponseWriter, r *http.
 	}
 	w.Header().Set("Content-Type", metadata.MediaType)
 	w.Header().Set("Content-Disposition", disposition)
+	w.Header().Set("Cache-Control", "private, no-store")
 	w.Header().Set("Content-Length", fmtInt64(metadata.Size))
 	w.Header().Set("X-Content-SHA256", metadata.SHA256)
 	w.WriteHeader(http.StatusOK)
@@ -291,6 +316,31 @@ func (h *Handler) deleteRelationshipAttachment(w http.ResponseWriter, r *http.Re
 		return
 	}
 	nodeID, attachmentID := r.PathValue("id"), r.PathValue("attachmentId")
+	h.coverMu.Lock()
+	defer h.coverMu.Unlock()
+	node, err := h.relationshipNode(r.Context(), nodeID)
+	if err != nil {
+		writeConnectorError(w, err)
+		return
+	}
+	if node.CoverAttachmentID == attachmentID {
+		items, listErr := h.relationshipAttachments(r.Context(), nodeID)
+		if listErr != nil {
+			writeConnectorError(w, listErr)
+			return
+		}
+		nextCover := ""
+		for _, item := range items {
+			if item.ID != attachmentID && isRelationshipCoverImage(item.MediaType) {
+				nextCover = item.ID
+				break
+			}
+		}
+		if _, updateErr := h.updateRelationshipCover(r.Context(), node, nextCover); updateErr != nil {
+			writeConnectorError(w, updateErr)
+			return
+		}
+	}
 	if connector, ok := h.activeAttachmentConnector(r.Context()); ok {
 		if err := connector.DeleteRelationshipAttachment(r.Context(), h.dossierRef(), nodeID, attachmentID); err != nil {
 			writeConnectorError(w, err)
@@ -309,6 +359,155 @@ func (h *Handler) deleteRelationshipAttachment(w http.ResponseWriter, r *http.Re
 	w.WriteHeader(http.StatusNoContent)
 }
 
+func (h *Handler) setRelationshipCover(w http.ResponseWriter, r *http.Request) {
+	var input struct {
+		CaseID       string `json:"caseId"`
+		AttachmentID string `json:"attachmentId"`
+	}
+	if decodeJSON(r, &input) != nil {
+		writeError(w, http.StatusBadRequest, "invalid cover request")
+		return
+	}
+	if input.CaseID != h.dossierRef().CaseID {
+		writeError(w, http.StatusConflict, "active case changed; reload before changing the cover")
+		return
+	}
+	nodeID := r.PathValue("id")
+	h.coverMu.Lock()
+	defer h.coverMu.Unlock()
+	node, err := h.relationshipNode(r.Context(), nodeID)
+	if err != nil {
+		writeConnectorError(w, err)
+		return
+	}
+	if input.AttachmentID != "" {
+		attachment, _, readErr := h.relationshipAttachment(r.Context(), nodeID, input.AttachmentID)
+		if readErr != nil {
+			writeConnectorError(w, readErr)
+			return
+		}
+		if !isRelationshipCoverImage(attachment.MediaType) {
+			writeError(w, http.StatusBadRequest, "cover attachment must be JPEG, PNG, WebP, or GIF")
+			return
+		}
+	}
+	updated, err := h.updateRelationshipCover(r.Context(), node, input.AttachmentID)
+	if err != nil {
+		writeConnectorError(w, err)
+		return
+	}
+	writeJSON(w, http.StatusOK, updated)
+}
+
+func (h *Handler) assignFirstRelationshipCover(ctx context.Context, nodeID string, attachment connectors.RelationshipAttachment) error {
+	if !isRelationshipCoverImage(attachment.MediaType) {
+		return nil
+	}
+	h.coverMu.Lock()
+	defer h.coverMu.Unlock()
+	node, err := h.relationshipNode(ctx, nodeID)
+	if err != nil {
+		return err
+	}
+	if node.CoverAttachmentID != "" {
+		current, _, readErr := h.relationshipAttachment(ctx, nodeID, node.CoverAttachmentID)
+		if readErr == nil && isRelationshipCoverImage(current.MediaType) {
+			return nil
+		}
+	}
+	_, err = h.updateRelationshipCover(ctx, node, attachment.ID)
+	return err
+}
+
+func (h *Handler) updateRelationshipCover(ctx context.Context, node connectors.RelationshipNode, attachmentID string) (connectors.RelationshipNode, error) {
+	node.CoverAttachmentID = attachmentID
+	if connector, ok := h.activeRelationshipConnector(ctx); ok {
+		return connector.UpdateRelationshipNode(ctx, h.dossierRef(), node)
+	}
+	h.relationMu.Lock()
+	defer h.relationMu.Unlock()
+	for i := range h.nodes {
+		if h.nodes[i].ID == node.ID {
+			h.nodes[i].CoverAttachmentID = attachmentID
+			return h.nodes[i], nil
+		}
+	}
+	return connectors.RelationshipNode{}, connectors.ErrEntityAbsent
+}
+
+func (h *Handler) relationshipNode(ctx context.Context, nodeID string) (connectors.RelationshipNode, error) {
+	snapshot, err := h.relationshipSnapshot(ctx)
+	if err != nil {
+		return connectors.RelationshipNode{}, err
+	}
+	for _, node := range snapshot.Nodes {
+		if node.ID == nodeID {
+			return node, nil
+		}
+	}
+	return connectors.RelationshipNode{}, connectors.ErrEntityAbsent
+}
+
+func (h *Handler) relationshipAttachments(ctx context.Context, nodeID string) ([]connectors.RelationshipAttachment, error) {
+	if connector, ok := h.activeAttachmentConnector(ctx); ok {
+		return connector.ListRelationshipAttachments(ctx, h.dossierRef(), nodeID)
+	}
+	h.attachmentMu.Lock()
+	items := make([]connectors.RelationshipAttachment, 0, len(h.attachments[nodeID]))
+	for _, item := range h.attachments[nodeID] {
+		items = append(items, item.Metadata)
+	}
+	h.attachmentMu.Unlock()
+	sort.Slice(items, func(i, j int) bool { return items[i].CreatedAt < items[j].CreatedAt })
+	return items, nil
+}
+
+func (h *Handler) relationshipAttachment(ctx context.Context, nodeID, attachmentID string) (connectors.RelationshipAttachment, []byte, error) {
+	if connector, ok := h.activeAttachmentConnector(ctx); ok {
+		return connector.ReadRelationshipAttachment(ctx, h.dossierRef(), nodeID, attachmentID)
+	}
+	h.attachmentMu.Lock()
+	item, exists := h.attachments[nodeID][attachmentID]
+	h.attachmentMu.Unlock()
+	if !exists {
+		return connectors.RelationshipAttachment{}, nil, connectors.ErrEntityAbsent
+	}
+	return item.Metadata, append([]byte{}, item.Content...), nil
+}
+
+func isRelationshipCoverImage(mediaType string) bool {
+	switch mediaType {
+	case "image/jpeg", "image/png", "image/webp", "image/gif":
+		return true
+	default:
+		return false
+	}
+}
+
+func validRelationshipImage(content []byte, mediaType string) bool {
+	if mediaType != "image/webp" {
+		_, format, err := image.DecodeConfig(bytes.NewReader(content))
+		if err != nil {
+			return false
+		}
+		expected := map[string]string{"image/jpeg": "jpeg", "image/png": "png", "image/gif": "gif"}
+		return expected[mediaType] == format
+	}
+	if len(content) < 25 || string(content[:4]) != "RIFF" || string(content[8:12]) != "WEBP" || int64(binary.LittleEndian.Uint32(content[4:8]))+8 > int64(len(content)) {
+		return false
+	}
+	switch string(content[12:16]) {
+	case "VP8X":
+		return len(content) >= 30
+	case "VP8L":
+		return len(content) >= 25 && content[20] == 0x2f
+	case "VP8 ":
+		return len(content) >= 30 && bytes.Equal(content[23:26], []byte{0x9d, 0x01, 0x2a})
+	default:
+		return false
+	}
+}
+
 func (h *Handler) activeAttachmentConnector(ctx context.Context) (connectors.RelationshipAttachmentConnector, bool) {
 	connector, ok := h.activeRelationshipConnector(ctx)
 	if !ok {
@@ -322,16 +521,8 @@ func (h *Handler) activeAttachmentConnector(ctx context.Context) (connectors.Rel
 }
 
 func (h *Handler) requireRelationshipNode(ctx context.Context, nodeID string) error {
-	snapshot, err := h.relationshipSnapshot(ctx)
-	if err != nil {
-		return err
-	}
-	for _, node := range snapshot.Nodes {
-		if node.ID == nodeID {
-			return nil
-		}
-	}
-	return connectors.ErrEntityAbsent
+	_, err := h.relationshipNode(ctx, nodeID)
+	return err
 }
 
 func validateRelationshipAttachmentFilename(name string) error {

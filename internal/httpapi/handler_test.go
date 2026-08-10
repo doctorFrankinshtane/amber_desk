@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"crypto/sha256"
+	"encoding/base64"
 	"encoding/hex"
 	"encoding/json"
 	"errors"
@@ -349,6 +350,96 @@ func TestRelationshipAttachmentAPIWithObsidian(t *testing.T) {
 	}
 }
 
+func TestRelationshipPhotoCoverWorkflow(t *testing.T) {
+	vault := t.TempDir()
+	provider, err := obsidian.New(obsidian.Config{VaultPath: vault})
+	if err != nil {
+		t.Fatal(err)
+	}
+	web := fstest.MapFS{"index.html": {Data: []byte("Amber Desk")}}
+	handler := httpapi.New(casefile.NewStore(casefile.BlankCase()), connectors.NewRegistry(provider), web)
+	created := request(t, handler, http.MethodPost, "/api/case", `{"name":"PHOTO COVER","subject":{"codename":"TARGET","risk":"low","confidence":50,"aliases":[],"identifiers":[],"relations":[]},"tags":[]}`)
+	var dossier struct {
+		Case          casefile.Case                   `json:"case"`
+		Relationships connectors.RelationshipSnapshot `json:"relationships"`
+	}
+	decode(t, created, &dossier)
+	nodeID, caseID := dossier.Relationships.Nodes[0].ID, dossier.Case.ID
+	png, err := base64.StdEncoding.DecodeString("iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII=")
+	if err != nil {
+		t.Fatal(err)
+	}
+	textAttachment := uploadAttachment(t, handler, nodeID, caseID, "notes.txt", []byte("not an image"))
+	brokenImage := multipartRequest(t, handler, "/api/relationships/nodes/"+nodeID+"/attachments", caseID, "broken.png", append([]byte("\x89PNG\r\n\x1a\n"), []byte("broken")...))
+	if brokenImage.Code != http.StatusBadRequest {
+		t.Fatalf("broken image upload: %d %s", brokenImage.Code, brokenImage.Body.String())
+	}
+	first := uploadAttachment(t, handler, nodeID, caseID, "first.png", png)
+	snapshot := relationshipSnapshot(t, handler)
+	if snapshot.Nodes[0].CoverAttachmentID != first.ID {
+		t.Fatalf("first image was not assigned as cover: %+v", snapshot.Nodes[0])
+	}
+	second := uploadAttachment(t, handler, nodeID, caseID, "second.png", png)
+	snapshot = relationshipSnapshot(t, handler)
+	if snapshot.Nodes[0].CoverAttachmentID != first.ID {
+		t.Fatalf("second image replaced the cover: %+v", snapshot.Nodes[0])
+	}
+	setSecond := request(t, handler, http.MethodPut, "/api/relationships/nodes/"+nodeID+"/cover", `{"caseId":"`+caseID+`","attachmentId":"`+second.ID+`"}`)
+	if setSecond.Code != http.StatusOK || !strings.Contains(setSecond.Body.String(), `"coverAttachmentId":"`+second.ID+`"`) {
+		t.Fatalf("set second cover: %d %s", setSecond.Code, setSecond.Body.String())
+	}
+	tamperedNode := relationshipSnapshot(t, handler).Nodes[0]
+	tamperedNode.CoverAttachmentID = textAttachment.ID
+	tamperedBody, err := json.Marshal(tamperedNode)
+	if err != nil {
+		t.Fatal(err)
+	}
+	tampered := request(t, handler, http.MethodPut, "/api/relationships/nodes/"+nodeID, string(tamperedBody))
+	if tampered.Code != http.StatusOK || !strings.Contains(tampered.Body.String(), `"coverAttachmentId":"`+second.ID+`"`) {
+		t.Fatalf("generic node update changed cover: %d %s", tampered.Code, tampered.Body.String())
+	}
+	nonImage := request(t, handler, http.MethodPut, "/api/relationships/nodes/"+nodeID+"/cover", `{"caseId":"`+caseID+`","attachmentId":"`+textAttachment.ID+`"}`)
+	if nonImage.Code != http.StatusBadRequest {
+		t.Fatalf("non-image cover: %d %s", nonImage.Code, nonImage.Body.String())
+	}
+	stale := request(t, handler, http.MethodPut, "/api/relationships/nodes/"+nodeID+"/cover", `{"caseId":"CASE-STALE","attachmentId":"`+first.ID+`"}`)
+	if stale.Code != http.StatusConflict {
+		t.Fatalf("stale cover: %d %s", stale.Code, stale.Body.String())
+	}
+	notePath := filepath.Join(vault, "Amber Desk", "Cases", caseID, "Relations", "Nodes", nodeID+".md")
+	note, err := os.ReadFile(notePath)
+	if err != nil || !strings.Contains(string(note), "cover_attachment_id: "+second.ID) {
+		t.Fatalf("cover frontmatter: %v %s", err, note)
+	}
+	removeSecond := request(t, handler, http.MethodDelete, "/api/relationships/nodes/"+nodeID+"/attachments/"+second.ID, `{"caseId":"`+caseID+`"}`)
+	if removeSecond.Code != http.StatusNoContent || relationshipSnapshot(t, handler).Nodes[0].CoverAttachmentID != first.ID {
+		t.Fatalf("cover fallback after delete: %d %s", removeSecond.Code, removeSecond.Body.String())
+	}
+	removeFirst := request(t, handler, http.MethodDelete, "/api/relationships/nodes/"+nodeID+"/attachments/"+first.ID, `{"caseId":"`+caseID+`"}`)
+	if removeFirst.Code != http.StatusNoContent || relationshipSnapshot(t, handler).Nodes[0].CoverAttachmentID != "" {
+		t.Fatalf("cover clear after final image: %d %s", removeFirst.Code, removeFirst.Body.String())
+	}
+}
+
+func TestRelationshipPhotoCoverMemoryFallback(t *testing.T) {
+	handler := newHandler()
+	created := request(t, handler, http.MethodPost, "/api/case", `{"name":"MEMORY PHOTO","subject":{"codename":"TARGET","risk":"low","confidence":50,"aliases":[],"identifiers":[],"relations":[]},"tags":[]}`)
+	var dossier struct {
+		Case          casefile.Case                   `json:"case"`
+		Relationships connectors.RelationshipSnapshot `json:"relationships"`
+	}
+	decode(t, created, &dossier)
+	png, err := base64.StdEncoding.DecodeString("iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII=")
+	if err != nil {
+		t.Fatal(err)
+	}
+	attachment := uploadAttachment(t, handler, dossier.Relationships.Nodes[0].ID, dossier.Case.ID, "memory.png", png)
+	node := relationshipSnapshot(t, handler).Nodes[0]
+	if node.CoverAttachmentID != attachment.ID || node.AttachmentCount != 1 {
+		t.Fatalf("memory cover: %+v", node)
+	}
+}
+
 func newHandler() http.Handler {
 	web := fstest.MapFS{"index.html": {Data: []byte("<title>Amber Desk</title>")}}
 	registry := connectors.NewRegistry(&fakeConnector{})
@@ -413,6 +504,28 @@ func multipartRequest(t *testing.T, handler http.Handler, path, caseID, filename
 	response := httptest.NewRecorder()
 	handler.ServeHTTP(response, req)
 	return response
+}
+
+func uploadAttachment(t *testing.T, handler http.Handler, nodeID, caseID, filename string, content []byte) connectors.RelationshipAttachment {
+	t.Helper()
+	response := multipartRequest(t, handler, "/api/relationships/nodes/"+nodeID+"/attachments", caseID, filename, content)
+	if response.Code != http.StatusCreated {
+		t.Fatalf("upload %s: %d %s", filename, response.Code, response.Body.String())
+	}
+	var attachment connectors.RelationshipAttachment
+	decode(t, response, &attachment)
+	return attachment
+}
+
+func relationshipSnapshot(t *testing.T, handler http.Handler) connectors.RelationshipSnapshot {
+	t.Helper()
+	response := request(t, handler, http.MethodGet, "/api/relationships", "")
+	if response.Code != http.StatusOK {
+		t.Fatalf("relationship snapshot: %d %s", response.Code, response.Body.String())
+	}
+	var snapshot connectors.RelationshipSnapshot
+	decode(t, response, &snapshot)
+	return snapshot
 }
 
 func decode(t *testing.T, response *httptest.ResponseRecorder, target any) {

@@ -253,6 +253,13 @@ button:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-
 .relations-form-actions { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; padding-top: 4px; }
 .relations-form-actions button { min-height: 31px; border: 1px solid var(--line); background: #0a0705; font-size: 8px; }.relations-form-actions button:last-child { border-color: var(--ink); background: var(--ink); color: var(--base); }
 .relationship-attachment-layer { position: absolute; inset: 0; z-index: 8; overflow: hidden; pointer-events: none; }
+.relationship-cover-layer { position: absolute; inset: 0; z-index: 7; overflow: hidden; pointer-events: none; }
+.relationship-cover-card { position: absolute; display: grid; grid-template-rows: 62% 38%; overflow: hidden; border: 1px solid #6d4820; background: #0b0805; color: #ffd98c; font-family: "Cascadia Mono", Consolas, monospace; }
+.relationship-cover-card > img { width: 100%; height: 100%; object-fit: cover; image-rendering: auto; }
+.relationship-cover-card > span { display: grid; min-height: 0; align-content: center; padding: 2px 7px; background: #0b0805; text-align: center; }
+.relationship-cover-card small, .relationship-cover-card b, .relationship-cover-card em { display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; letter-spacing: 0; }
+.relationship-cover-card small { color: #d38b35; font-size: max(6px, calc(var(--cover-font) * .72)); }.relationship-cover-card b { font-size: var(--cover-font); }.relationship-cover-card em { color: #d6b270; font-size: max(6px, calc(var(--cover-font) * .78)); font-style: normal; }
+.relationship-cover-card.compact { grid-template-rows: 66% 34%; }.relationship-cover-card.compact em { display: none; }
 .relationship-attachment-stack { position: absolute; width: 34px; height: 25px; color: #160e06; font: 700 9px/18px "Cascadia Mono", Consolas, monospace; text-align: center; }
 .relationship-attachment-stack::before, .relationship-attachment-stack::after { content: ""; position: absolute; width: 23px; height: 16px; border: 1px solid #5d3a17; background: #b97828; }
 .relationship-attachment-stack::before { left: 2px; top: 1px; }
@@ -262,15 +269,18 @@ button:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-
 .relation-attachments > header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 8px; }
 .relation-attachments h3 { margin: 0; color: var(--ink-bright); font-size: 8px; }
 .relation-attachments header span, .relation-attachment-status { color: var(--ink-dim); font-size: 7px; }
+.relation-attachment-actions { display: grid; grid-template-columns: 1fr 1fr; gap: 5px; }
 .relation-attachment-add { width: 100%; min-height: 30px; border: 1px dashed var(--ink); background: transparent; color: var(--ink-bright); font-size: 8px; }
 .relation-attachment-status { min-height: 11px; margin: 6px 0 0; overflow-wrap: anywhere; }
 .relation-attachment-list { display: grid; gap: 5px; margin-top: 7px; }
-.relation-attachment-item { display: grid; grid-template-columns: minmax(0, 1fr) 28px 28px; align-items: center; gap: 4px; min-height: 34px; padding: 4px 5px; border: 1px solid #432b14; }
+.relation-attachment-item { display: grid; grid-template-columns: 34px minmax(0, 1fr) 28px 28px 28px; align-items: center; gap: 4px; min-height: 42px; padding: 4px 5px; border: 1px solid #432b14; }
+.relation-attachment-preview { display: grid; width: 34px; height: 34px; place-items: center; border: 1px solid #432b14; background: #0e0905; color: var(--ink-dim); font-size: 6px; object-fit: cover; }
 .relation-attachment-item > span { min-width: 0; }
 .relation-attachment-item b, .relation-attachment-item small { display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .relation-attachment-item b { color: var(--ink-bright); font-size: 7px; }
 .relation-attachment-item small { margin-top: 3px; color: var(--ink-dim); font-size: 6px; }
 .relation-attachment-item a, .relation-attachment-item button { display: grid; width: 28px; height: 28px; place-items: center; border: 1px solid var(--line); background: #070503; color: var(--ink-bright); font: 700 10px/1 monospace; text-decoration: none; }
+.relation-cover-action { color: var(--ink) !important; }.relation-cover-action:disabled { border-color: var(--ink); background: var(--ink); color: var(--base) !important; opacity: 1; }
 
 .case-wizard { width: min(760px, calc(100vw - 24px)); height: min(690px, calc(100svh - 28px)); max-width: none; max-height: none; padding: 0; border: 1px solid var(--ink); border-radius: 0; background: #0a0705; color: var(--ink); }
 .case-wizard::backdrop { background: #050302df; backdrop-filter: blur(2px); }

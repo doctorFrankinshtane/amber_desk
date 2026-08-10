@@ -124,17 +124,18 @@ type MapSnapshot struct {
 }
 
 type RelationshipNode struct {
-	ID              string   `json:"id" yaml:"id"`
-	Type            string   `json:"type" yaml:"type"`
-	Title           string   `json:"title" yaml:"title"`
-	Subtitle        string   `json:"subtitle" yaml:"subtitle"`
-	Details         string   `json:"details" yaml:"details"`
-	Risk            string   `json:"risk" yaml:"risk"`
-	SourceIDs       []string `json:"sourceIds" yaml:"source_ids"`
-	X               float64  `json:"x" yaml:"x"`
-	Y               float64  `json:"y" yaml:"y"`
-	Primary         bool     `json:"primary" yaml:"primary"`
-	AttachmentCount int      `json:"attachmentCount" yaml:"-"`
+	ID                string   `json:"id" yaml:"id"`
+	Type              string   `json:"type" yaml:"type"`
+	Title             string   `json:"title" yaml:"title"`
+	Subtitle          string   `json:"subtitle" yaml:"subtitle"`
+	Details           string   `json:"details" yaml:"details"`
+	Risk              string   `json:"risk" yaml:"risk"`
+	SourceIDs         []string `json:"sourceIds" yaml:"source_ids"`
+	X                 float64  `json:"x" yaml:"x"`
+	Y                 float64  `json:"y" yaml:"y"`
+	Primary           bool     `json:"primary" yaml:"primary"`
+	CoverAttachmentID string   `json:"coverAttachmentId" yaml:"cover_attachment_id,omitempty"`
+	AttachmentCount   int      `json:"attachmentCount" yaml:"-"`
 }
 
 type RelationshipEdge struct {
