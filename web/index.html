@@ -162,6 +162,13 @@ _______/</pre>
                 <label><span data-i18n="relations.details">DETAILS</span><textarea id="relation-node-details" rows="4" maxlength="4000"></textarea></label>
                 <label><span data-i18n="dossier.risk">RISK</span><select id="relation-node-risk"><option value="low">LOW</option><option value="medium">MEDIUM</option><option value="high">HIGH</option></select></label>
                 <label><span data-i18n="relations.sources">SOURCE EVENT IDS</span><input id="relation-node-sources" placeholder="EV-001, EV-002"></label>
+                <section id="relation-attachments" class="relation-attachments" hidden aria-labelledby="relation-attachments-title">
+                  <header><h3 id="relation-attachments-title" data-i18n="relations.attachments">DOCUMENTS</h3><span id="relation-attachment-count">0 / 20</span></header>
+                  <input id="relation-attachment-input" class="visually-hidden" type="file" multiple>
+                  <button id="relation-attachment-add" class="relation-attachment-add" type="button" data-i18n="relations.addAttachments">+ ATTACH FILES</button>
+                  <p id="relation-attachment-status" class="relation-attachment-status" aria-live="polite"></p>
+                  <div id="relation-attachment-list" class="relation-attachment-list"></div>
+                </section>
                 <div class="relations-form-actions"><button id="relation-node-delete" type="button" data-i18n="common.delete">DELETE</button><button type="submit" data-i18n="common.save">SAVE</button></div>
               </form>
               <form id="relation-edge-form" hidden>

@@ -12,6 +12,14 @@ var (
 	ErrConnectorAbsent = errors.New("connector not found")
 	ErrConflict        = errors.New("dossier changed outside Amber Desk")
 	ErrEntityAbsent    = errors.New("connector entity not found")
+	ErrInvalidFilename = errors.New("invalid attachment filename")
+	ErrAttachmentLimit = errors.New("attachment limit reached")
+	ErrAttachmentLarge = errors.New("attachment exceeds size limit")
+)
+
+const (
+	MaxRelationshipAttachmentSize     int64 = 10 << 20
+	MaxRelationshipAttachmentsPerNode       = 20
 )
 
 type Metadata struct {
@@ -116,16 +124,17 @@ type MapSnapshot struct {
 }
 
 type RelationshipNode struct {
-	ID        string   `json:"id" yaml:"id"`
-	Type      string   `json:"type" yaml:"type"`
-	Title     string   `json:"title" yaml:"title"`
-	Subtitle  string   `json:"subtitle" yaml:"subtitle"`
-	Details   string   `json:"details" yaml:"details"`
-	Risk      string   `json:"risk" yaml:"risk"`
-	SourceIDs []string `json:"sourceIds" yaml:"source_ids"`
-	X         float64  `json:"x" yaml:"x"`
-	Y         float64  `json:"y" yaml:"y"`
-	Primary   bool     `json:"primary" yaml:"primary"`
+	ID              string   `json:"id" yaml:"id"`
+	Type            string   `json:"type" yaml:"type"`
+	Title           string   `json:"title" yaml:"title"`
+	Subtitle        string   `json:"subtitle" yaml:"subtitle"`
+	Details         string   `json:"details" yaml:"details"`
+	Risk            string   `json:"risk" yaml:"risk"`
+	SourceIDs       []string `json:"sourceIds" yaml:"source_ids"`
+	X               float64  `json:"x" yaml:"x"`
+	Y               float64  `json:"y" yaml:"y"`
+	Primary         bool     `json:"primary" yaml:"primary"`
+	AttachmentCount int      `json:"attachmentCount" yaml:"-"`
 }
 
 type RelationshipEdge struct {
@@ -143,6 +152,24 @@ type RelationshipSnapshot struct {
 	Nodes   []RelationshipNode `json:"nodes"`
 	Edges   []RelationshipEdge `json:"edges"`
 	Backend string             `json:"backend"`
+}
+
+type RelationshipAttachment struct {
+	ID        string `json:"id"`
+	NodeID    string `json:"nodeId"`
+	Filename  string `json:"filename"`
+	MediaType string `json:"mediaType"`
+	Size      int64  `json:"size"`
+	SHA256    string `json:"sha256"`
+	CreatedAt string `json:"createdAt"`
+}
+
+type RelationshipAttachmentConnector interface {
+	Connector
+	ListRelationshipAttachments(context.Context, DossierRef, string) ([]RelationshipAttachment, error)
+	StoreRelationshipAttachment(context.Context, DossierRef, RelationshipAttachment, []byte) (RelationshipAttachment, error)
+	ReadRelationshipAttachment(context.Context, DossierRef, string, string) (RelationshipAttachment, []byte, error)
+	DeleteRelationshipAttachment(context.Context, DossierRef, string, string) error
 }
 
 type Connector interface {

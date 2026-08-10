@@ -1,9 +1,13 @@
 package httpapi_test
 
 import (
+	"bytes"
 	"context"
+	"crypto/sha256"
+	"encoding/hex"
 	"encoding/json"
 	"errors"
+	"mime/multipart"
 	"net/http"
 	"net/http/httptest"
 	"os"
@@ -297,6 +301,54 @@ func TestIntegrationDossierWorkflow(t *testing.T) {
 	}
 }
 
+func TestRelationshipAttachmentAPIWithObsidian(t *testing.T) {
+	vault := t.TempDir()
+	provider, err := obsidian.New(obsidian.Config{VaultPath: vault})
+	if err != nil {
+		t.Fatal(err)
+	}
+	web := fstest.MapFS{"index.html": {Data: []byte("Amber Desk")}}
+	handler := httpapi.New(casefile.NewStore(casefile.BlankCase()), connectors.NewRegistry(provider), web)
+	created := request(t, handler, http.MethodPost, "/api/case", `{"name":"ATTACHMENTS","subject":{"codename":"TARGET","risk":"low","confidence":50,"aliases":[],"identifiers":[],"relations":[]},"tags":[]}`)
+	var dossier struct {
+		Case          casefile.Case                   `json:"case"`
+		Relationships connectors.RelationshipSnapshot `json:"relationships"`
+	}
+	decode(t, created, &dossier)
+	nodeID := dossier.Relationships.Nodes[0].ID
+	content := []byte("evidence payload")
+	upload := multipartRequest(t, handler, "/api/relationships/nodes/"+nodeID+"/attachments", dossier.Case.ID, "evidence.txt", content)
+	if upload.Code != http.StatusCreated {
+		t.Fatalf("attachment upload: %d %s", upload.Code, upload.Body.String())
+	}
+	var attachment connectors.RelationshipAttachment
+	decode(t, upload, &attachment)
+	sum := sha256.Sum256(content)
+	if attachment.Size != int64(len(content)) || attachment.SHA256 != hex.EncodeToString(sum[:]) {
+		t.Fatalf("attachment response: %+v", attachment)
+	}
+	list := request(t, handler, http.MethodGet, "/api/relationships/nodes/"+nodeID+"/attachments", "")
+	if list.Code != http.StatusOK || !strings.Contains(list.Body.String(), "evidence.txt") {
+		t.Fatalf("attachment list: %d %s", list.Code, list.Body.String())
+	}
+	download := request(t, handler, http.MethodGet, "/api/relationships/nodes/"+nodeID+"/attachments/"+attachment.ID, "")
+	if download.Code != http.StatusOK || download.Body.String() != string(content) || download.Header().Get("X-Content-SHA256") != attachment.SHA256 {
+		t.Fatalf("attachment download: %d %q %v", download.Code, download.Body.String(), download.Header())
+	}
+	stale := request(t, handler, http.MethodDelete, "/api/relationships/nodes/"+nodeID+"/attachments/"+attachment.ID, `{"caseId":"CASE-STALE"}`)
+	if stale.Code != http.StatusConflict {
+		t.Fatalf("stale attachment delete: %d %s", stale.Code, stale.Body.String())
+	}
+	removed := request(t, handler, http.MethodDelete, "/api/relationships/nodes/"+nodeID+"/attachments/"+attachment.ID, `{"caseId":"`+dossier.Case.ID+`"}`)
+	if removed.Code != http.StatusNoContent {
+		t.Fatalf("attachment delete: %d %s", removed.Code, removed.Body.String())
+	}
+	large := multipartRequest(t, handler, "/api/relationships/nodes/"+nodeID+"/attachments", dossier.Case.ID, "large.bin", make([]byte, connectors.MaxRelationshipAttachmentSize+1))
+	if large.Code != http.StatusRequestEntityTooLarge {
+		t.Fatalf("large attachment: %d %s", large.Code, large.Body.String())
+	}
+}
+
 func newHandler() http.Handler {
 	web := fstest.MapFS{"index.html": {Data: []byte("<title>Amber Desk</title>")}}
 	registry := connectors.NewRegistry(&fakeConnector{})
@@ -334,6 +386,30 @@ func request(t *testing.T, handler http.Handler, method, path, body string) *htt
 	if body != "" {
 		req.Header.Set("Content-Type", "application/json")
 	}
+	response := httptest.NewRecorder()
+	handler.ServeHTTP(response, req)
+	return response
+}
+
+func multipartRequest(t *testing.T, handler http.Handler, path, caseID, filename string, content []byte) *httptest.ResponseRecorder {
+	t.Helper()
+	var body bytes.Buffer
+	writer := multipart.NewWriter(&body)
+	if err := writer.WriteField("caseId", caseID); err != nil {
+		t.Fatal(err)
+	}
+	part, err := writer.CreateFormFile("file", filename)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := part.Write(content); err != nil {
+		t.Fatal(err)
+	}
+	if err := writer.Close(); err != nil {
+		t.Fatal(err)
+	}
+	req := httptest.NewRequest(http.MethodPost, path, &body)
+	req.Header.Set("Content-Type", writer.FormDataContentType())
 	response := httptest.NewRecorder()
 	handler.ServeHTTP(response, req)
 	return response

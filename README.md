@@ -34,6 +34,7 @@ Extensible browser workspace for OSINT investigations. Amber Desk combines a den
 - One-click source provenance logging into the investigation chronology
 - Three-step dossier creation wizard with local-first Obsidian synchronization
 - Detective-style relationship board with draggable clue cards and sourced threads
+- Local relationship-card attachments with hashes, downloads, and at-a-glance document stacks
 - Multi-dossier picker with Obsidian-backed switching and restart recovery
 - Vault-local trash for complete cases and individual chronology records
 
@@ -72,6 +73,9 @@ Amber Desk/
     Map/Routes/<route-id>.md
     Relations/Nodes/<node-id>.md
     Relations/Edges/<edge-id>.md
+    Relations/Attachments/<node-id>/<attachment-id>/
+      metadata.json
+      content.bin
   .state/
     cases-index.json
     active-case-id.json
@@ -95,7 +99,7 @@ Deleting a dossier requires typing its exact case ID. Amber Desk moves the dossi
 
 Open **Relations** to arrange the investigation as a detective link board. The primary object stays visually distinct while subjects, organizations, accounts, locations, infrastructure, evidence, and facts appear as draggable clue cards. Directional threads store a label, confidence, kind, source event IDs, and an analyst note. Amber, red, and teal threads represent standard, critical, and evidence-backed relationships.
 
-The graph engine is bundled locally. Card positions and threads are stored through the relationship capability provider, using readable Markdown notes when Obsidian is connected.
+The graph engine is bundled locally. Card positions and threads are stored through the relationship capability provider, using readable Markdown notes when Obsidian is connected. Each card can hold up to 20 local files of 10 MiB each. Amber Desk validates filenames, computes a SHA-256 digest, keeps file bytes inside the active case directory, and shows the attachment count as a document stack without opening the inspector. Removed files are moved into the case-local `.trash` tree.
 
 ![Amber Desk relationship board](docs/assets/amber-relations.png)
 
@@ -165,6 +169,10 @@ See [.env.example](.env.example) for a local template.
 - `POST /api/relationships/nodes`
 - `PUT /api/relationships/nodes/{id}`
 - `DELETE /api/relationships/nodes/{id}`
+- `GET /api/relationships/nodes/{id}/attachments`
+- `POST /api/relationships/nodes/{id}/attachments`
+- `GET /api/relationships/nodes/{id}/attachments/{attachmentId}`
+- `DELETE /api/relationships/nodes/{id}/attachments/{attachmentId}`
 - `POST /api/relationships/edges`
 - `PUT /api/relationships/edges/{id}`
 - `DELETE /api/relationships/edges/{id}`

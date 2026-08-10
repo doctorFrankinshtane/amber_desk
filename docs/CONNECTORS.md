@@ -15,7 +15,7 @@ type Connector interface {
 }
 ```
 
-Storage families are optional capability interfaces. A provider may implement `TimelineConnector`, `TimelineDeleteConnector`, `MapConnector`, `RelationshipConnector`, `WorkspaceStateConnector`, or `CaseStoreConnector`. The generic HTTP layer selects a connected provider by the capabilities declared in metadata and falls back to memory when no provider is available.
+Storage families are optional capability interfaces. A provider may implement `TimelineConnector`, `TimelineDeleteConnector`, `MapConnector`, `RelationshipConnector`, `RelationshipAttachmentConnector`, `WorkspaceStateConnector`, or `CaseStoreConnector`. The generic HTTP layer selects a connected provider by the capabilities declared in metadata and falls back to memory when no provider is available.
 
 `WorkspaceStateConnector` stores small opaque snapshots such as `active-case`. It keeps provider packages independent from the internal case model while allowing a workspace to survive process restarts. Providers must validate state keys, keep state local to their configured storage root, and write snapshots atomically.
 
@@ -31,6 +31,7 @@ Every connector must expose:
 - A human-readable name and description
 - Explicit capabilities such as `dossier.read`, `timeline.write`, and `map.read`
 - Relationship capabilities `relationships.read` and `relationships.write` for clue cards, positions, and sourced threads
+- Attachment capabilities `relationships.attachments.read`, `relationships.attachments.write`, and `relationships.attachments.delete` for card-local evidence files
 - Workspace state capabilities `workspace.state.read` and `workspace.state.write` when the provider can restore the active workspace
 - Case lifecycle capabilities `cases.read`, `cases.write`, and `cases.delete`
 - `timeline.delete` only when event deletion uses safe provider-side semantics
@@ -52,6 +53,8 @@ Validate configuration at startup when possible. A missing optional connector co
 The HTTP dossier response includes `caseId`, and clients must return it on `PUT`. The backend rejects a write when that value no longer matches the active case, preventing a stale editor opened on one investigation from overwriting another investigation's dossier.
 
 Connector writes should be transactional when the external system allows it. The Obsidian implementation writes a temporary file in the destination directory, flushes it, and renames it over the Markdown document.
+
+Attachment providers receive server-generated IDs and bounded content. They must validate node and attachment IDs again, keep original filenames as metadata rather than path components, enforce `MaxRelationshipAttachmentSize` and `MaxRelationshipAttachmentsPerNode`, and verify the SHA-256 digest when reading persisted content. Deletion should use recoverable local trash where the storage backend supports it.
 
 ## Security Requirements
 

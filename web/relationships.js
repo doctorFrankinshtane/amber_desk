@@ -1,7 +1,7 @@
 "use strict";
 
 window.AmberRelations = (() => {
-  const state = { initialized: false, loaded: false, snapshot: { nodes: [], edges: [], backend: "memory" }, cy: null, mode: "select", linkSource: null, draftPosition: null };
+  const state = { initialized: false, loaded: false, snapshot: { nodes: [], edges: [], backend: "memory" }, cy: null, mode: "select", linkSource: null, draftPosition: null, attachments: new Map(), attachmentLayer: null };
   const el = {};
 
   async function init() {
@@ -18,7 +18,7 @@ window.AmberRelations = (() => {
   }
 
   function cache() {
-    ["relations-board", "relations-backend", "relation-select", "relation-add-node", "relation-connect", "relation-layout", "relation-search", "relations-empty", "relation-node-form", "relation-node-id", "relation-node-type", "relation-node-title", "relation-node-subtitle", "relation-node-details", "relation-node-risk", "relation-node-sources", "relation-node-delete", "relation-edge-form", "relation-edge-id", "relation-edge-source", "relation-edge-target", "relation-edge-from", "relation-edge-to", "relation-edge-label", "relation-edge-confidence", "relation-edge-confidence-value", "relation-edge-kind", "relation-edge-sources", "relation-edge-note", "relation-edge-delete"].forEach((id) => { el[id] = document.getElementById(id); });
+    ["relations-board", "relations-backend", "relation-select", "relation-add-node", "relation-connect", "relation-layout", "relation-search", "relations-empty", "relation-node-form", "relation-node-id", "relation-node-type", "relation-node-title", "relation-node-subtitle", "relation-node-details", "relation-node-risk", "relation-node-sources", "relation-node-delete", "relation-attachments", "relation-attachment-input", "relation-attachment-add", "relation-attachment-status", "relation-attachment-list", "relation-attachment-count", "relation-edge-form", "relation-edge-id", "relation-edge-source", "relation-edge-target", "relation-edge-from", "relation-edge-to", "relation-edge-label", "relation-edge-confidence", "relation-edge-confidence-value", "relation-edge-kind", "relation-edge-sources", "relation-edge-note", "relation-edge-delete"].forEach((id) => { el[id] = document.getElementById(id); });
   }
 
   function bind() {
@@ -30,6 +30,8 @@ window.AmberRelations = (() => {
     el["relation-node-form"].addEventListener("submit", saveNode);
     el["relation-edge-form"].addEventListener("submit", saveEdge);
     el["relation-node-delete"].addEventListener("click", deleteNode);
+    el["relation-attachment-add"].addEventListener("click", () => el["relation-attachment-input"].click());
+    el["relation-attachment-input"].addEventListener("change", uploadAttachments);
     el["relation-edge-delete"].addEventListener("click", deleteEdge);
     el["relation-edge-confidence"].addEventListener("input", () => { el["relation-edge-confidence-value"].textContent = `${el["relation-edge-confidence"].value}%`; });
     document.addEventListener("amber:case-created", (event) => { state.snapshot = event.detail.relationships; state.loaded = true; if (state.initialized) build(); });
@@ -69,6 +71,8 @@ window.AmberRelations = (() => {
     state.cy.on("tap", "edge", (event) => { if (state.mode === "select") showEdge(event.target.data()); });
     state.cy.on("tap", (event) => { if (event.target === state.cy && state.mode === "select") showEmpty(); });
     state.cy.on("dragfree", "node", (event) => persistPosition(event.target));
+    state.cy.on("render position pan zoom", syncAttachmentStacks);
+    renderAttachmentStacks();
     el["relations-backend"].textContent = (state.snapshot.backend || "memory").toUpperCase();
     if (!state.snapshot.nodes.length) showEmpty();
   }
@@ -102,6 +106,9 @@ window.AmberRelations = (() => {
     el["relation-node-id"].value = node.id; el["relation-node-type"].value = node.type; el["relation-node-type"].disabled = node.primary;
     el["relation-node-title"].value = node.title; el["relation-node-subtitle"].value = node.subtitle || ""; el["relation-node-details"].value = node.details || ""; el["relation-node-risk"].value = node.risk || "low"; el["relation-node-sources"].value = (node.sourceIds || []).join(", ");
     el["relation-node-delete"].hidden = draft || node.primary;
+    el["relation-attachments"].hidden = draft;
+    if (draft) { el["relation-attachment-list"].replaceChildren(); el["relation-attachment-status"].textContent = ""; }
+    else loadAttachments(node.id);
   }
 
   function showEdge(edge, draft = false) {
@@ -115,7 +122,7 @@ window.AmberRelations = (() => {
 
   async function saveNode(event) {
     event.preventDefault(); const id = el["relation-node-id"].value; const existing = state.snapshot.nodes.find((node) => node.id === id);
-    const payload = { id, type: el["relation-node-type"].value, title: el["relation-node-title"].value.trim(), subtitle: el["relation-node-subtitle"].value.trim(), details: el["relation-node-details"].value.trim(), risk: el["relation-node-risk"].value, sourceIds: csv(el["relation-node-sources"].value), x: existing?.x ?? state.draftPosition?.x ?? .5, y: existing?.y ?? state.draftPosition?.y ?? .5, primary: existing?.primary || false };
+    const payload = { id, type: el["relation-node-type"].value, title: el["relation-node-title"].value.trim(), subtitle: el["relation-node-subtitle"].value.trim(), details: el["relation-node-details"].value.trim(), risk: el["relation-node-risk"].value, sourceIds: csv(el["relation-node-sources"].value), x: existing?.x ?? state.draftPosition?.x ?? .5, y: existing?.y ?? state.draftPosition?.y ?? .5, primary: existing?.primary || false, attachmentCount: existing?.attachmentCount || 0 };
     const saved = await api(id ? `/api/relationships/nodes/${id}` : "/api/relationships/nodes", { method: id ? "PUT" : "POST", body: JSON.stringify(payload) });
     if (!saved) return; if (id) state.snapshot.nodes[state.snapshot.nodes.findIndex((node) => node.id === id)] = saved; else state.snapshot.nodes.push(saved); state.draftPosition = null; build(); state.cy.getElementById(saved.id).select(); showNode(saved);
   }
@@ -139,6 +146,76 @@ window.AmberRelations = (() => {
     state.snapshot.edges = state.snapshot.edges.filter((edge) => edge.id !== id); build(); showEmpty();
   }
 
+  async function loadAttachments(nodeID) {
+    el["relation-attachment-status"].textContent = "LOADING...";
+    const items = await api(`/api/relationships/nodes/${encodeURIComponent(nodeID)}/attachments`, { method: "GET" });
+    if (!items || el["relation-node-id"].value !== nodeID) return;
+    state.attachments.set(nodeID, items);
+    updateAttachmentCount(nodeID, items.length);
+    renderAttachmentList(nodeID, items);
+  }
+
+  function renderAttachmentList(nodeID, items) {
+    el["relation-attachment-status"].textContent = items.length ? "" : "NO DOCUMENTS";
+    el["relation-attachment-count"].textContent = `${items.length} / 20`;
+    el["relation-attachment-add"].disabled = items.length >= 20;
+    el["relation-attachment-list"].replaceChildren(...items.map((item) => {
+      const row = document.createElement("div"); row.className = "relation-attachment-item";
+      const info = document.createElement("span"), name = document.createElement("b"), details = document.createElement("small");
+      name.textContent = item.filename; name.title = item.filename;
+      details.textContent = `${formatBytes(item.size)} / SHA ${item.sha256.slice(0, 10)}`; info.append(name, details);
+      const download = document.createElement("a"); download.href = `/api/relationships/nodes/${encodeURIComponent(nodeID)}/attachments/${encodeURIComponent(item.id)}`; download.textContent = "↓"; download.title = `Download ${item.filename}`; download.setAttribute("aria-label", `Download ${item.filename}`);
+      const remove = document.createElement("button"); remove.type = "button"; remove.textContent = "×"; remove.title = `Remove ${item.filename}`; remove.setAttribute("aria-label", `Remove ${item.filename}`); remove.addEventListener("click", () => removeAttachment(nodeID, item));
+      row.append(info, download, remove); return row;
+    }));
+  }
+
+  async function uploadAttachments(event) {
+    const nodeID = el["relation-node-id"].value, files = [...event.target.files]; event.target.value = "";
+    if (!nodeID || !files.length) return;
+    const caseResponse = await fetch("/api/case", { headers: { Accept: "application/json" } }), caseData = await caseResponse.json();
+    if (!caseResponse.ok) { boardMessage(`BOARD ERROR / ${caseData.error || caseResponse.status}`); return; }
+    el["relation-attachment-add"].disabled = true;
+    for (let index = 0; index < files.length; index += 1) {
+      el["relation-attachment-status"].textContent = `UPLOADING ${index + 1} / ${files.length}`;
+      const body = new FormData(); body.append("caseId", caseData.id); body.append("file", files[index], files[index].name);
+      const created = await api(`/api/relationships/nodes/${encodeURIComponent(nodeID)}/attachments`, { method: "POST", body });
+      if (!created) break;
+    }
+    await loadAttachments(nodeID);
+  }
+
+  async function removeAttachment(nodeID, item) {
+    if (!window.confirm(`${I18n.t("relations.removeAttachmentConfirm")}\n\n${item.filename}`)) return;
+    const caseResponse = await fetch("/api/case", { headers: { Accept: "application/json" } }), caseData = await caseResponse.json();
+    const removed = await api(`/api/relationships/nodes/${encodeURIComponent(nodeID)}/attachments/${encodeURIComponent(item.id)}`, { method: "DELETE", body: JSON.stringify({ caseId: caseData.id }) }, true);
+    if (removed) await loadAttachments(nodeID);
+  }
+
+  function updateAttachmentCount(nodeID, count) {
+    const node = state.snapshot.nodes.find((item) => item.id === nodeID); if (node) node.attachmentCount = count;
+    const cyNode = state.cy?.getElementById(nodeID); if (cyNode?.length) cyNode.data("attachmentCount", count);
+    renderAttachmentStacks();
+  }
+
+  function renderAttachmentStacks() {
+    state.attachmentLayer?.remove();
+    const layer = document.createElement("div"); layer.className = "relationship-attachment-layer"; state.attachmentLayer = layer;
+    state.snapshot.nodes.filter((node) => node.attachmentCount > 0).forEach((node) => {
+      const stack = document.createElement("span"); stack.className = "relationship-attachment-stack"; stack.dataset.nodeId = node.id; stack.setAttribute("role", "img"); stack.setAttribute("aria-label", I18n.t("relations.attachmentStack", { count: node.attachmentCount, title: node.title }));
+      const count = document.createElement("b"); count.textContent = node.attachmentCount; stack.append(count); layer.append(stack);
+    });
+    el["relations-board"].append(layer); syncAttachmentStacks();
+  }
+
+  function syncAttachmentStacks() {
+    if (!state.cy || !state.attachmentLayer) return;
+    state.attachmentLayer.querySelectorAll(".relationship-attachment-stack").forEach((stack) => {
+      const node = state.cy.getElementById(stack.dataset.nodeId); if (!node.length) return;
+      const position = node.renderedPosition(); stack.style.transform = `translate(${Math.round(position.x + node.renderedWidth() / 2 - 38)}px, ${Math.round(position.y + node.renderedHeight() / 2 - 28)}px)`;
+    });
+  }
+
   async function persistPosition(cyNode) {
     const width = Math.max(el["relations-board"].clientWidth, 1), height = Math.max(el["relations-board"].clientHeight, 1), item = state.snapshot.nodes.find((node) => node.id === cyNode.id()); if (!item) return;
     item.x = clamp(cyNode.position("x") / width); item.y = clamp(cyNode.position("y") / height); await api(`/api/relationships/nodes/${item.id}`, { method: "PUT", body: JSON.stringify(item) });
@@ -156,13 +233,14 @@ window.AmberRelations = (() => {
   }
 
   async function api(url, options, noContent = false) {
-    try { const response = await fetch(url, { ...options, headers: { "Content-Type": "application/json", Accept: "application/json" } }); if (!response.ok) { const payload = await response.json(); throw new Error(payload.error || `API ${response.status}`); } return noContent ? true : response.json(); }
+    try { const headers = { Accept: "application/json" }; if (!(options?.body instanceof FormData)) headers["Content-Type"] = "application/json"; const response = await fetch(url, { ...options, headers }); if (!response.ok) { const payload = await response.json(); throw new Error(payload.error || `API ${response.status}`); } return noContent ? true : response.json(); }
     catch (error) { boardMessage(`BOARD ERROR / ${error.message}`); return null; }
   }
 
   function nodeTitle(id) { return state.snapshot.nodes.find((node) => node.id === id)?.title || id; }
   function csv(value) { return value.split(",").map((item) => item.trim()).filter(Boolean); }
   function clamp(value) { return Math.max(0, Math.min(1, value)); }
+  function formatBytes(value) { if (value < 1024) return `${value} B`; if (value < 1048576) return `${(value / 1024).toFixed(1)} KiB`; return `${(value / 1048576).toFixed(1)} MiB`; }
   document.addEventListener("amber:case-switched", refresh);
   return { init, refresh, get loaded() { return state.loaded; } };
 })();

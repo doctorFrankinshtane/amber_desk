@@ -22,7 +22,7 @@ type relationshipEdgeDocument struct {
 	connectors.RelationshipEdge `yaml:",inline"`
 }
 
-func (c *Connector) ListRelationships(_ context.Context, ref connectors.DossierRef) (connectors.RelationshipSnapshot, error) {
+func (c *Connector) ListRelationships(ctx context.Context, ref connectors.DossierRef) (connectors.RelationshipSnapshot, error) {
 	nodes, err := c.listRelationshipNodes(ref)
 	if err != nil {
 		return connectors.RelationshipSnapshot{}, err
@@ -30,6 +30,13 @@ func (c *Connector) ListRelationships(_ context.Context, ref connectors.DossierR
 	edges, err := c.listRelationshipEdges(ref)
 	if err != nil {
 		return connectors.RelationshipSnapshot{}, err
+	}
+	for i := range nodes {
+		attachments, listErr := c.ListRelationshipAttachments(ctx, ref, nodes[i].ID)
+		if listErr != nil {
+			return connectors.RelationshipSnapshot{}, listErr
+		}
+		nodes[i].AttachmentCount = len(attachments)
 	}
 	return connectors.RelationshipSnapshot{Nodes: nodes, Edges: edges, Backend: ID}, nil
 }
@@ -74,6 +81,9 @@ func (c *Connector) DeleteRelationshipNode(ctx context.Context, ref connectors.D
 	}
 	if node.Primary {
 		return errors.New("primary object cannot be deleted")
+	}
+	if err := c.trashRelationshipAttachments(ref, id); err != nil {
+		return err
 	}
 	path, err := c.relationshipPath(ref, "Nodes", id, false)
 	if err != nil {

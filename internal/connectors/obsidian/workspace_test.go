@@ -2,7 +2,10 @@ package obsidian_test
 
 import (
 	"context"
+	"crypto/sha256"
+	"encoding/hex"
 	"encoding/json"
+	"errors"
 	"os"
 	"path/filepath"
 	"strings"
@@ -140,5 +143,52 @@ func TestRelationshipsPersistAsMarkdownAndCascade(t *testing.T) {
 	snapshot, err = connector.ListRelationships(ctx, ref)
 	if err != nil || len(snapshot.Nodes) != 1 || len(snapshot.Edges) != 0 {
 		t.Fatalf("cascade relationship delete: %v %+v", err, snapshot)
+	}
+}
+
+func TestRelationshipAttachmentRoundTripAndTrash(t *testing.T) {
+	vault := t.TempDir()
+	connector, err := obsidian.New(obsidian.Config{VaultPath: vault})
+	if err != nil {
+		t.Fatal(err)
+	}
+	ctx := context.Background()
+	ref := connectors.DossierRef{CaseID: "CASE-ATTACH", CaseName: "ATTACHMENTS"}
+	if _, err := connector.CreateRelationshipNode(ctx, ref, connectors.RelationshipNode{ID: "NODE-1", Type: "evidence", Title: "Receipt", X: .5, Y: .5}); err != nil {
+		t.Fatal(err)
+	}
+	content := []byte("local evidence bytes\n")
+	stored, err := connector.StoreRelationshipAttachment(ctx, ref, connectors.RelationshipAttachment{ID: "ATT-1", NodeID: "NODE-1", Filename: "receipt.txt", MediaType: "text/plain"}, content)
+	if err != nil {
+		t.Fatal(err)
+	}
+	sum := sha256.Sum256(content)
+	if stored.Size != int64(len(content)) || stored.SHA256 != hex.EncodeToString(sum[:]) {
+		t.Fatalf("attachment metadata: %+v", stored)
+	}
+	items, err := connector.ListRelationshipAttachments(ctx, ref, "NODE-1")
+	if err != nil || len(items) != 1 || items[0].Filename != "receipt.txt" {
+		t.Fatalf("attachment list: %v %+v", err, items)
+	}
+	metadata, restored, err := connector.ReadRelationshipAttachment(ctx, ref, "NODE-1", "ATT-1")
+	if err != nil || metadata.SHA256 != stored.SHA256 || string(restored) != string(content) {
+		t.Fatalf("attachment read: %v %+v %q", err, metadata, restored)
+	}
+	snapshot, err := connector.ListRelationships(ctx, ref)
+	if err != nil || snapshot.Nodes[0].AttachmentCount != 1 {
+		t.Fatalf("attachment count: %v %+v", err, snapshot)
+	}
+	if _, err := connector.StoreRelationshipAttachment(ctx, ref, connectors.RelationshipAttachment{ID: "ATT-2", NodeID: "NODE-1", Filename: "../escape.txt"}, content); !errors.Is(err, connectors.ErrInvalidFilename) {
+		t.Fatalf("traversal filename = %v", err)
+	}
+	if err := connector.DeleteRelationshipAttachment(ctx, ref, "NODE-1", "ATT-1"); err != nil {
+		t.Fatal(err)
+	}
+	if _, _, err := connector.ReadRelationshipAttachment(ctx, ref, "NODE-1", "ATT-1"); !errors.Is(err, connectors.ErrEntityAbsent) {
+		t.Fatalf("deleted attachment read = %v", err)
+	}
+	trash, _ := filepath.Glob(filepath.Join(vault, "Amber Desk", "Cases", "CASE-ATTACH", ".trash", "Attachments", "NODE-1", "*-ATT-1"))
+	if len(trash) != 1 {
+		t.Fatalf("attachment trash = %v", trash)
 	}
 }

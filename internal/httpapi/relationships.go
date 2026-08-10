@@ -2,13 +2,27 @@ package httpapi
 
 import (
 	"context"
+	"crypto/sha256"
+	"encoding/hex"
 	"errors"
+	"io"
+	"mime"
 	"net/http"
+	"path/filepath"
+	"sort"
+	"strconv"
 	"strings"
+	"time"
+	"unicode/utf8"
 
 	"amberdesk/internal/casefile"
 	"amberdesk/pkg/connectors"
 )
+
+type memoryAttachment struct {
+	Metadata connectors.RelationshipAttachment
+	Content  []byte
+}
 
 var relationshipNodeTypes = map[string]bool{"object": true, "subject": true, "organization": true, "account": true, "location": true, "infrastructure": true, "evidence": true, "fact": true}
 var relationshipKinds = map[string]bool{"standard": true, "critical": true, "evidence": true}
@@ -27,6 +41,11 @@ func (h *Handler) listRelationships(w http.ResponseWriter, r *http.Request) {
 	h.relationMu.Lock()
 	snapshot := connectors.RelationshipSnapshot{Nodes: cloneRelationshipNodes(h.nodes), Edges: cloneRelationshipEdges(h.edges), Backend: "memory"}
 	h.relationMu.Unlock()
+	h.attachmentMu.Lock()
+	for i := range snapshot.Nodes {
+		snapshot.Nodes[i].AttachmentCount = len(h.attachments[snapshot.Nodes[i].ID])
+	}
+	h.attachmentMu.Unlock()
 	writeJSON(w, http.StatusOK, snapshot)
 }
 
@@ -126,11 +145,209 @@ func (h *Handler) deleteRelationshipNode(w http.ResponseWriter, r *http.Request)
 			h.edges = append(h.edges[:i], h.edges[i+1:]...)
 		}
 	}
+	h.attachmentMu.Lock()
+	delete(h.attachments, id)
+	h.attachmentMu.Unlock()
 	if !removed {
 		writeError(w, http.StatusNotFound, connectors.ErrEntityAbsent.Error())
 		return
 	}
 	w.WriteHeader(http.StatusNoContent)
+}
+
+func (h *Handler) listRelationshipAttachments(w http.ResponseWriter, r *http.Request) {
+	nodeID := r.PathValue("id")
+	if err := h.requireRelationshipNode(r.Context(), nodeID); err != nil {
+		writeConnectorError(w, err)
+		return
+	}
+	if connector, ok := h.activeAttachmentConnector(r.Context()); ok {
+		items, err := connector.ListRelationshipAttachments(r.Context(), h.dossierRef(), nodeID)
+		if err != nil {
+			writeConnectorError(w, err)
+			return
+		}
+		writeJSON(w, http.StatusOK, items)
+		return
+	}
+	h.attachmentMu.Lock()
+	items := make([]connectors.RelationshipAttachment, 0, len(h.attachments[nodeID]))
+	for _, item := range h.attachments[nodeID] {
+		items = append(items, item.Metadata)
+	}
+	h.attachmentMu.Unlock()
+	sort.Slice(items, func(i, j int) bool { return items[i].CreatedAt < items[j].CreatedAt })
+	writeJSON(w, http.StatusOK, items)
+}
+
+func (h *Handler) createRelationshipAttachment(w http.ResponseWriter, r *http.Request) {
+	r.Body = http.MaxBytesReader(w, r.Body, connectors.MaxRelationshipAttachmentSize+(1<<20))
+	if err := r.ParseMultipartForm(connectors.MaxRelationshipAttachmentSize); err != nil {
+		writeError(w, http.StatusRequestEntityTooLarge, "attachment exceeds 10 MiB")
+		return
+	}
+	ref := h.dossierRef()
+	if r.FormValue("caseId") != ref.CaseID {
+		writeError(w, http.StatusConflict, "active case changed; reload before uploading")
+		return
+	}
+	nodeID := r.PathValue("id")
+	if err := h.requireRelationshipNode(r.Context(), nodeID); err != nil {
+		writeConnectorError(w, err)
+		return
+	}
+	file, header, err := r.FormFile("file")
+	if err != nil {
+		writeError(w, http.StatusBadRequest, "file is required")
+		return
+	}
+	defer file.Close()
+	if err := validateRelationshipAttachmentFilename(header.Filename); err != nil {
+		writeConnectorError(w, err)
+		return
+	}
+	content, err := io.ReadAll(io.LimitReader(file, connectors.MaxRelationshipAttachmentSize+1))
+	if err != nil {
+		writeError(w, http.StatusBadRequest, "cannot read attachment")
+		return
+	}
+	if int64(len(content)) > connectors.MaxRelationshipAttachmentSize {
+		writeConnectorError(w, connectors.ErrAttachmentLarge)
+		return
+	}
+	mediaType := header.Header.Get("Content-Type")
+	parsedMediaType, _, mediaErr := mime.ParseMediaType(mediaType)
+	if mediaErr != nil || parsedMediaType == "application/octet-stream" {
+		mediaType = http.DetectContentType(content)
+	} else {
+		mediaType = parsedMediaType
+	}
+	attachment := connectors.RelationshipAttachment{ID: newID("ATT"), NodeID: nodeID, Filename: header.Filename, MediaType: mediaType, CreatedAt: time.Now().UTC().Format(time.RFC3339Nano)}
+	if connector, ok := h.activeAttachmentConnector(r.Context()); ok {
+		created, storeErr := connector.StoreRelationshipAttachment(r.Context(), ref, attachment, content)
+		if storeErr != nil {
+			writeConnectorError(w, storeErr)
+			return
+		}
+		writeJSON(w, http.StatusCreated, created)
+		return
+	}
+	h.attachmentMu.Lock()
+	defer h.attachmentMu.Unlock()
+	if len(h.attachments[nodeID]) >= connectors.MaxRelationshipAttachmentsPerNode {
+		writeConnectorError(w, connectors.ErrAttachmentLimit)
+		return
+	}
+	sum := sha256.Sum256(content)
+	attachment.Size, attachment.SHA256 = int64(len(content)), hex.EncodeToString(sum[:])
+	if h.attachments[nodeID] == nil {
+		h.attachments[nodeID] = make(map[string]memoryAttachment)
+	}
+	h.attachments[nodeID][attachment.ID] = memoryAttachment{Metadata: attachment, Content: append([]byte{}, content...)}
+	writeJSON(w, http.StatusCreated, attachment)
+}
+
+func (h *Handler) downloadRelationshipAttachment(w http.ResponseWriter, r *http.Request) {
+	nodeID, attachmentID := r.PathValue("id"), r.PathValue("attachmentId")
+	var metadata connectors.RelationshipAttachment
+	var content []byte
+	var err error
+	if connector, ok := h.activeAttachmentConnector(r.Context()); ok {
+		metadata, content, err = connector.ReadRelationshipAttachment(r.Context(), h.dossierRef(), nodeID, attachmentID)
+	} else {
+		h.attachmentMu.Lock()
+		item, exists := h.attachments[nodeID][attachmentID]
+		h.attachmentMu.Unlock()
+		if !exists {
+			err = connectors.ErrEntityAbsent
+		} else {
+			metadata, content = item.Metadata, append([]byte{}, item.Content...)
+		}
+	}
+	if err != nil {
+		writeConnectorError(w, err)
+		return
+	}
+	disposition := mime.FormatMediaType("attachment", map[string]string{"filename": metadata.Filename})
+	if parsed, _, parseErr := mime.ParseMediaType(metadata.MediaType); parseErr == nil {
+		metadata.MediaType = parsed
+	} else {
+		metadata.MediaType = "application/octet-stream"
+	}
+	w.Header().Set("Content-Type", metadata.MediaType)
+	w.Header().Set("Content-Disposition", disposition)
+	w.Header().Set("Content-Length", fmtInt64(metadata.Size))
+	w.Header().Set("X-Content-SHA256", metadata.SHA256)
+	w.WriteHeader(http.StatusOK)
+	_, _ = w.Write(content)
+}
+
+func (h *Handler) deleteRelationshipAttachment(w http.ResponseWriter, r *http.Request) {
+	var input struct {
+		CaseID string `json:"caseId"`
+	}
+	if decodeJSON(r, &input) != nil || input.CaseID != h.dossierRef().CaseID {
+		writeError(w, http.StatusConflict, "active case changed; reload before deleting")
+		return
+	}
+	nodeID, attachmentID := r.PathValue("id"), r.PathValue("attachmentId")
+	if connector, ok := h.activeAttachmentConnector(r.Context()); ok {
+		if err := connector.DeleteRelationshipAttachment(r.Context(), h.dossierRef(), nodeID, attachmentID); err != nil {
+			writeConnectorError(w, err)
+			return
+		}
+	} else {
+		h.attachmentMu.Lock()
+		if _, exists := h.attachments[nodeID][attachmentID]; !exists {
+			h.attachmentMu.Unlock()
+			writeConnectorError(w, connectors.ErrEntityAbsent)
+			return
+		}
+		delete(h.attachments[nodeID], attachmentID)
+		h.attachmentMu.Unlock()
+	}
+	w.WriteHeader(http.StatusNoContent)
+}
+
+func (h *Handler) activeAttachmentConnector(ctx context.Context) (connectors.RelationshipAttachmentConnector, bool) {
+	connector, ok := h.activeRelationshipConnector(ctx)
+	if !ok {
+		return nil, false
+	}
+	if !hasCapability(connector.Metadata().Capabilities, "relationships.attachments.read") {
+		return nil, false
+	}
+	attachments, supported := connector.(connectors.RelationshipAttachmentConnector)
+	return attachments, supported
+}
+
+func (h *Handler) requireRelationshipNode(ctx context.Context, nodeID string) error {
+	snapshot, err := h.relationshipSnapshot(ctx)
+	if err != nil {
+		return err
+	}
+	for _, node := range snapshot.Nodes {
+		if node.ID == nodeID {
+			return nil
+		}
+	}
+	return connectors.ErrEntityAbsent
+}
+
+func validateRelationshipAttachmentFilename(name string) error {
+	if name == "" || name == "." || name == ".." || filepath.Base(name) != name || strings.ContainsAny(name, `/\\`) || utf8.RuneCountInString(name) > 180 {
+		return connectors.ErrInvalidFilename
+	}
+	for _, char := range name {
+		if char < 32 || char == 127 {
+			return connectors.ErrInvalidFilename
+		}
+	}
+	return nil
+}
+
+func fmtInt64(value int64) string {
+	return strconv.FormatInt(value, 10)
 }
 
 func (h *Handler) createRelationshipEdge(w http.ResponseWriter, r *http.Request) {

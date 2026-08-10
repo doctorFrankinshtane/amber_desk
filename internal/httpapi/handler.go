@@ -16,18 +16,20 @@ import (
 )
 
 type Handler struct {
-	store      *casefile.Store
-	connectors *connectors.Registry
-	web        http.Handler
-	mapMu      sync.Mutex
-	markers    []connectors.MapMarker
-	routes     []connectors.MapRoute
-	relationMu sync.Mutex
-	caseMu     sync.Mutex
-	nodes      []connectors.RelationshipNode
-	edges      []connectors.RelationshipEdge
-	mapTiles   MapTileConfig
-	catalog    catalog.Provider
+	store        *casefile.Store
+	connectors   *connectors.Registry
+	web          http.Handler
+	mapMu        sync.Mutex
+	markers      []connectors.MapMarker
+	routes       []connectors.MapRoute
+	relationMu   sync.Mutex
+	caseMu       sync.Mutex
+	nodes        []connectors.RelationshipNode
+	edges        []connectors.RelationshipEdge
+	attachmentMu sync.Mutex
+	attachments  map[string]map[string]memoryAttachment
+	mapTiles     MapTileConfig
+	catalog      catalog.Provider
 }
 
 func New(store *casefile.Store, registry *connectors.Registry, webFiles fs.FS) http.Handler {
@@ -40,7 +42,7 @@ type Config struct {
 }
 
 func NewWithConfig(store *casefile.Store, registry *connectors.Registry, webFiles fs.FS, config Config) http.Handler {
-	h := &Handler{store: store, connectors: registry, web: http.FileServer(http.FS(webFiles)), mapTiles: config.MapTiles.normalized(), catalog: config.Catalog}
+	h := &Handler{store: store, connectors: registry, web: http.FileServer(http.FS(webFiles)), mapTiles: config.MapTiles.normalized(), catalog: config.Catalog, attachments: make(map[string]map[string]memoryAttachment)}
 	mux := http.NewServeMux()
 	mux.HandleFunc("GET /api/health", h.health)
 	mux.HandleFunc("GET /api/case", h.getCase)
@@ -67,6 +69,10 @@ func NewWithConfig(store *casefile.Store, registry *connectors.Registry, webFile
 	mux.HandleFunc("POST /api/relationships/nodes", h.createRelationshipNode)
 	mux.HandleFunc("PUT /api/relationships/nodes/{id}", h.updateRelationshipNode)
 	mux.HandleFunc("DELETE /api/relationships/nodes/{id}", h.deleteRelationshipNode)
+	mux.HandleFunc("GET /api/relationships/nodes/{id}/attachments", h.listRelationshipAttachments)
+	mux.HandleFunc("POST /api/relationships/nodes/{id}/attachments", h.createRelationshipAttachment)
+	mux.HandleFunc("GET /api/relationships/nodes/{id}/attachments/{attachmentId}", h.downloadRelationshipAttachment)
+	mux.HandleFunc("DELETE /api/relationships/nodes/{id}/attachments/{attachmentId}", h.deleteRelationshipAttachment)
 	mux.HandleFunc("POST /api/relationships/edges", h.createRelationshipEdge)
 	mux.HandleFunc("PUT /api/relationships/edges/{id}", h.updateRelationshipEdge)
 	mux.HandleFunc("DELETE /api/relationships/edges/{id}", h.deleteRelationshipEdge)
@@ -280,6 +286,18 @@ func writeConnectorError(w http.ResponseWriter, err error) {
 	}
 	if errors.Is(err, connectors.ErrEntityAbsent) {
 		writeError(w, http.StatusNotFound, err.Error())
+		return
+	}
+	if errors.Is(err, connectors.ErrInvalidFilename) {
+		writeError(w, http.StatusBadRequest, err.Error())
+		return
+	}
+	if errors.Is(err, connectors.ErrAttachmentLarge) {
+		writeError(w, http.StatusRequestEntityTooLarge, err.Error())
+		return
+	}
+	if errors.Is(err, connectors.ErrAttachmentLimit) {
+		writeError(w, http.StatusConflict, err.Error())
 		return
 	}
 	writeError(w, http.StatusBadGateway, err.Error())
