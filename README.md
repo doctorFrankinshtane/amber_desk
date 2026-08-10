@@ -13,6 +13,10 @@
 
 Extensible browser workspace for OSINT investigations. Amber Desk combines a dense dossier timeline, evidence review, command workflow, and backend connectors in a pixel-inspired amber CRT interface.
 
+## User Documentation
+
+[English user guide](docs/USER_GUIDE.md) | [Руководство на русском](docs/USER_GUIDE_RU.md)
+
 ![Amber Desk dossier workspace](docs/assets/amber-desk.png)
 
 ## Features
