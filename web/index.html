@@ -1,0 +1,153 @@
+<!doctype html>
+<html lang="ru">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="theme-color" content="#100c08">
+  <title>Amber Desk / Dossier Timeline</title>
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+  <div class="crt-noise" aria-hidden="true"></div>
+  <div class="app-shell" data-view="timeline">
+    <header class="topbar">
+      <a class="brand" href="#timeline" aria-label="Amber Desk">
+        <span class="brand-mark" aria-hidden="true">AD</span>
+        <span><b>AMBER DESK</b><small>OSINT WORKSPACE / NODE 04</small></span>
+      </a>
+      <div class="case-strip">
+        <span class="label">CASE</span>
+        <strong id="case-name">LOADING...</strong>
+        <span class="case-id" id="case-id">--</span>
+      </div>
+      <label class="global-search">
+        <span class="visually-hidden">Поиск по делу</span>
+        <span aria-hidden="true">/</span>
+        <input id="search" type="search" autocomplete="off" placeholder="SEARCH CASE" disabled>
+        <kbd>CTRL K</kbd>
+      </label>
+      <div class="system-state">
+        <span class="signal" aria-hidden="true"><i></i><i></i><i></i></span>
+        <span><b>LOCAL</b><small id="api-state">CONNECTING</small></span>
+        <time id="clock">00:00:00</time>
+      </div>
+    </header>
+
+    <nav class="mobile-tabs" aria-label="Разделы дела">
+      <button type="button" data-mobile-view="dossier">DOSSIER</button>
+      <button type="button" class="active" data-mobile-view="timeline">TIMELINE</button>
+      <button type="button" data-mobile-view="evidence">EVIDENCE</button>
+    </nav>
+
+    <main class="workspace" aria-live="polite">
+      <aside class="dossier panel" aria-labelledby="dossier-title">
+        <div class="panel-heading">
+          <div><span class="section-code">01</span><h1 id="dossier-title">SUBJECT DOSSIER</h1></div>
+          <span class="record-state">ACTIVE</span>
+        </div>
+        <section class="identity-block">
+          <canvas id="subject-avatar" width="112" height="112" aria-label="Пиксельный портрет объекта"></canvas>
+          <div class="identity-copy">
+            <span class="label">PRIMARY SUBJECT</span>
+            <h2 id="subject-codename">---</h2>
+            <p id="subject-name">---</p>
+            <div class="risk-line"><span>RISK</span><strong id="subject-risk">--</strong></div>
+          </div>
+        </section>
+        <dl class="confidence-grid">
+          <div><dt>CONFIDENCE</dt><dd><b id="confidence">0%</b><span class="meter"><i id="confidence-meter"></i></span></dd></div>
+          <div><dt>LAST SEEN</dt><dd id="last-seen">--</dd></div>
+          <div><dt>LOCATION</dt><dd id="location">--</dd></div>
+        </dl>
+        <section class="data-section">
+          <header><h3>ALIASES</h3><span id="alias-count">00</span></header>
+          <ul class="token-list" id="aliases"></ul>
+        </section>
+        <section class="data-section">
+          <header><h3>IDENTIFIERS</h3><span id="identifier-count">00</span></header>
+          <dl class="identifier-list" id="identifiers"></dl>
+        </section>
+        <section class="data-section relations-section">
+          <header><h3>RELATED ENTITIES</h3><span id="relation-count">00</span></header>
+          <ul class="relation-list" id="relations"></ul>
+        </section>
+      </aside>
+
+      <section class="timeline panel" id="timeline" aria-labelledby="timeline-title">
+        <div class="panel-heading timeline-heading">
+          <div><span class="section-code">02</span><h1 id="timeline-title">INVESTIGATION CHRONOLOGY</h1></div>
+          <div class="timeline-stats"><span><b id="visible-count">00</b> EVENTS</span><span><b id="verified-count">00</b> VERIFIED</span></div>
+        </div>
+        <div class="filterbar">
+          <div class="segmented" id="type-filters" aria-label="Фильтр по типу">
+            <button class="active" type="button" data-filter="all">ALL</button>
+            <button type="button" data-filter="identity">ID</button>
+            <button type="button" data-filter="infrastructure">NET</button>
+            <button type="button" data-filter="media">MEDIA</button>
+            <button type="button" data-filter="social">SOC</button>
+            <button type="button" data-filter="financial">FIN</button>
+          </div>
+          <label class="status-filter">STATUS
+            <select id="status-filter" disabled>
+              <option value="all">ALL</option>
+              <option value="verified">VERIFIED</option>
+              <option value="pending">PENDING</option>
+            </select>
+          </label>
+        </div>
+        <div class="timeline-list" id="timeline-list" tabindex="0"></div>
+        <div class="empty-state" id="empty-state" hidden>
+          <span>00</span><strong>NO MATCHING SIGNALS</strong><p>Adjust filters or search query.</p>
+        </div>
+      </section>
+
+      <aside class="evidence panel" aria-labelledby="evidence-title">
+        <div class="panel-heading">
+          <div><span class="section-code">03</span><h1 id="evidence-title">EVIDENCE INSPECTOR</h1></div>
+          <span class="event-id" id="event-id">NO EVENT</span>
+        </div>
+        <div id="evidence-content" class="evidence-content">
+          <div class="loading-block"><span></span><b>LOADING CASE DATA</b></div>
+        </div>
+      </aside>
+    </main>
+
+    <footer class="commandbar">
+      <span class="prompt" aria-hidden="true">&gt;_</span>
+      <label><span class="visually-hidden">Командная строка</span><input id="command-input" autocomplete="off" spellcheck="false" placeholder="TYPE COMMAND OR 'HELP'" disabled></label>
+      <output id="command-output">SYSTEM INITIALIZING</output>
+      <button type="button" id="open-palette" title="Открыть палитру команд" disabled>COMMANDS</button>
+    </footer>
+  </div>
+
+  <dialog id="command-palette" class="command-palette">
+    <form method="dialog" class="palette-shell">
+      <header><div><span class="section-code">CMD</span><h2>COMMAND INDEX</h2></div><button value="cancel" aria-label="Закрыть">X</button></header>
+      <label><span>&gt;</span><input id="palette-input" autocomplete="off" placeholder="FILTER COMMANDS"></label>
+      <div class="command-list" id="command-list"></div>
+      <footer><span>ENTER RUN</span><span>ESC CLOSE</span></footer>
+    </form>
+  </dialog>
+
+  <template id="evidence-template">
+    <article>
+      <div class="evidence-status-line"><span class="type-code"></span><span class="status-badge"></span></div>
+      <h2 class="evidence-title"></h2>
+      <p class="evidence-summary"></p>
+      <dl class="evidence-meta">
+        <div><dt>SOURCE</dt><dd class="meta-source"></dd></div>
+        <div><dt>CAPTURED</dt><dd class="meta-time"></dd></div>
+        <div><dt>CONFIDENCE</dt><dd><b class="meta-confidence"></b><span class="meter"><i></i></span></dd></div>
+        <div><dt>FINGERPRINT</dt><dd class="meta-fingerprint"></dd></div>
+      </dl>
+      <section class="indicator-section"><h3>INDICATORS</h3><ul class="indicator-list"></ul></section>
+      <section class="notes-section"><header><h3>ANALYST NOTES</h3><span class="note-count"></span></header><ul class="notes-list"></ul>
+        <form class="note-form"><label><span class="visually-hidden">Новая заметка</span><textarea maxlength="280" rows="2" placeholder="ADD NOTE..."></textarea></label><button type="submit">ADD</button></form>
+      </section>
+      <div class="evidence-actions"><button class="verify-button" type="button"></button><button class="copy-button" type="button">COPY HASH</button></div>
+    </article>
+  </template>
+
+  <script src="app.js"></script>
+</body>
+</html>
