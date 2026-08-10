@@ -1,6 +1,7 @@
 package httpapi_test
 
 import (
+	"context"
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
@@ -9,6 +10,7 @@ import (
 	"testing/fstest"
 
 	"amberdesk/internal/casefile"
+	"amberdesk/internal/connectors"
 	"amberdesk/internal/httpapi"
 )
 
@@ -61,9 +63,54 @@ func TestStaticIndex(t *testing.T) {
 	}
 }
 
+func TestIntegrationDossierWorkflow(t *testing.T) {
+	handler := newHandler()
+
+	listResponse := request(t, handler, http.MethodGet, "/api/integrations", "")
+	if listResponse.Code != http.StatusOK || !strings.Contains(listResponse.Body.String(), `"id":"test"`) {
+		t.Fatalf("unexpected integrations response: %d %s", listResponse.Code, listResponse.Body.String())
+	}
+
+	readResponse := request(t, handler, http.MethodGet, "/api/integrations/test/dossier", "")
+	if readResponse.Code != http.StatusOK || !strings.Contains(readResponse.Body.String(), "Initial dossier") {
+		t.Fatalf("unexpected dossier response: %d %s", readResponse.Code, readResponse.Body.String())
+	}
+
+	writeResponse := request(t, handler, http.MethodPut, "/api/integrations/test/dossier", `{"content":"Updated dossier"}`)
+	if writeResponse.Code != http.StatusOK || !strings.Contains(writeResponse.Body.String(), "Updated dossier") {
+		t.Fatalf("unexpected write response: %d %s", writeResponse.Code, writeResponse.Body.String())
+	}
+}
+
 func newHandler() http.Handler {
 	web := fstest.MapFS{"index.html": {Data: []byte("<title>Amber Desk</title>")}}
-	return httpapi.New(casefile.NewStore(casefile.DemoCase()), web)
+	registry := connectors.NewRegistry(&fakeConnector{})
+	return httpapi.New(casefile.NewStore(casefile.DemoCase()), registry, web)
+}
+
+type fakeConnector struct {
+	content string
+}
+
+func (f *fakeConnector) Metadata() connectors.Metadata {
+	return connectors.Metadata{ID: "test", Name: "Test", Configured: true, Capabilities: []string{"dossier.read", "dossier.write"}}
+}
+
+func (f *fakeConnector) Status(context.Context) connectors.Status {
+	return connectors.Status{State: "connected", Message: "ready"}
+}
+
+func (f *fakeConnector) ReadDossier(context.Context, connectors.DossierRef) (connectors.Dossier, error) {
+	content := f.content
+	if content == "" {
+		content = "Initial dossier"
+	}
+	return connectors.Dossier{Content: content, Path: "test.md", Exists: f.content != ""}, nil
+}
+
+func (f *fakeConnector) WriteDossier(_ context.Context, _ connectors.DossierRef, write connectors.DossierWrite) (connectors.Dossier, error) {
+	f.content = write.Content
+	return connectors.Dossier{Content: write.Content, Path: "test.md", Exists: true}, nil
 }
 
 func request(t *testing.T, handler http.Handler, method, path, body string) *httptest.ResponseRecorder {

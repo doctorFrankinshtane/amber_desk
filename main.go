@@ -10,7 +10,9 @@ import (
 	"time"
 
 	"amberdesk/internal/casefile"
+	"amberdesk/internal/connectors/obsidian"
 	"amberdesk/internal/httpapi"
+	"amberdesk/pkg/connectors"
 )
 
 //go:embed web/*
@@ -23,7 +25,15 @@ func main() {
 	}
 
 	store := casefile.NewStore(casefile.DemoCase())
-	handler := httpapi.New(store, webRoot)
+	obsidianConnector, err := obsidian.New(obsidian.Config{
+		VaultPath:  os.Getenv("OBSIDIAN_VAULT"),
+		DossierDir: envOr("OBSIDIAN_DOSSIER_DIR", "Amber Desk/Dossiers"),
+	})
+	if err != nil {
+		log.Fatalf("configure obsidian connector: %v", err)
+	}
+	registry := connectors.NewRegistry(obsidianConnector)
+	handler := httpapi.New(store, registry, webRoot)
 	addr := envOr("ADDR", ":8080")
 
 	server := &http.Server{

@@ -1,5 +1,5 @@
 <!doctype html>
-<html lang="ru">
+<html lang="en">
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
@@ -12,120 +12,134 @@
   <div class="app-shell" data-view="timeline">
     <header class="topbar">
       <a class="brand" href="#timeline" aria-label="Amber Desk">
-        <span class="brand-mark" aria-hidden="true">AD</span>
-        <span><b>AMBER DESK</b><small>OSINT WORKSPACE / NODE 04</small></span>
+        <span class="visually-hidden">Amber Desk</span>
+        <pre class="ascii-brand ascii-brand-full" aria-hidden="true"> ________  _____ ______   ________  _______   ________  ________  _______   ________  ___  __
+|\   __  \|\   _ \  _   \|\   __  \|\  ___ \ |\   __  \|\   ___ \|\  ___ \ |\   ____\|\  \|\  \
+\ \  \|\  \ \  \\\__\ \  \ \  \|\ /\ \   __/|\ \  \|\  \ \  \_|\ \ \   __/|\ \  \___|\ \  \/  /|_
+ \ \   __  \ \  \\|__| \  \ \   __  \ \  \_|/_\ \   _  _\ \  \ \\ \ \  \_|/_\ \_____  \ \   ___  \
+  \ \  \ \  \ \  \    \ \  \ \  \|\  \ \  \_|\ \ \  \\  \\ \  \_\\ \ \  \_|\ \|____|\  \ \  \\ \  \
+   \ \__\ \__\ \__\    \ \__\ \_______\ \_______\ \__\\ _\\ \_______\ \_______\____\_\  \ \__\\ \__\
+    \|__|\|__|\|__|     \|__|\|_______|\|_______|\|__|\|__|\|_______|\|_______|\_________\|__| \|__|
+                                                                              \|_________|</pre>
+        <pre class="ascii-brand ascii-brand-mini" aria-hidden="true"> AMBER\
+ DESK  \
+_______/</pre>
       </a>
       <div class="case-strip">
-        <span class="label">CASE</span>
+        <span class="label" data-i18n="case.label">CASE</span>
         <strong id="case-name">LOADING...</strong>
         <span class="case-id" id="case-id">--</span>
       </div>
       <label class="global-search">
         <span class="visually-hidden">Поиск по делу</span>
         <span aria-hidden="true">/</span>
-        <input id="search" type="search" autocomplete="off" placeholder="SEARCH CASE" disabled>
+        <input id="search" type="search" autocomplete="off" placeholder="SEARCH CASE" data-i18n-placeholder="search.placeholder" disabled>
         <kbd>CTRL K</kbd>
       </label>
+      <div class="header-actions">
+        <label class="language-picker"><span class="visually-hidden" data-i18n="language.label">Language</span><select id="language-select" aria-label="Language"><option value="en">EN</option><option value="ru">RU</option></select></label>
+        <button type="button" id="obsidian-open" class="vault-button"><span class="connector-dot" aria-hidden="true"></span><span data-i18n="connector.vault">VAULT</span></button>
+      </div>
       <div class="system-state">
         <span class="signal" aria-hidden="true"><i></i><i></i><i></i></span>
-        <span><b>LOCAL</b><small id="api-state">CONNECTING</small></span>
+        <span><b>LOCAL</b><small id="api-state" data-i18n="state.connecting">CONNECTING</small></span>
         <time id="clock">00:00:00</time>
       </div>
     </header>
 
     <nav class="mobile-tabs" aria-label="Разделы дела">
-      <button type="button" data-mobile-view="dossier">DOSSIER</button>
-      <button type="button" class="active" data-mobile-view="timeline">TIMELINE</button>
-      <button type="button" data-mobile-view="evidence">EVIDENCE</button>
+      <button type="button" data-mobile-view="dossier" data-i18n="tabs.dossier">DOSSIER</button>
+      <button type="button" class="active" data-mobile-view="timeline" data-i18n="tabs.timeline">TIMELINE</button>
+      <button type="button" data-mobile-view="evidence" data-i18n="tabs.evidence">EVIDENCE</button>
     </nav>
 
     <main class="workspace" aria-live="polite">
       <aside class="dossier panel" aria-labelledby="dossier-title">
         <div class="panel-heading">
-          <div><span class="section-code">01</span><h1 id="dossier-title">SUBJECT DOSSIER</h1></div>
-          <span class="record-state">ACTIVE</span>
+          <div><span class="section-code">01</span><h1 id="dossier-title" data-i18n="dossier.title">SUBJECT DOSSIER</h1></div>
+          <span class="record-state" data-i18n="state.active">ACTIVE</span>
         </div>
         <section class="identity-block">
           <canvas id="subject-avatar" width="112" height="112" aria-label="Пиксельный портрет объекта"></canvas>
           <div class="identity-copy">
-            <span class="label">PRIMARY SUBJECT</span>
+            <span class="label" data-i18n="dossier.primarySubject">PRIMARY SUBJECT</span>
             <h2 id="subject-codename">---</h2>
             <p id="subject-name">---</p>
-            <div class="risk-line"><span>RISK</span><strong id="subject-risk">--</strong></div>
+            <div class="risk-line"><span data-i18n="dossier.risk">RISK</span><strong id="subject-risk">--</strong></div>
           </div>
         </section>
         <dl class="confidence-grid">
-          <div><dt>CONFIDENCE</dt><dd><b id="confidence">0%</b><span class="meter"><i id="confidence-meter"></i></span></dd></div>
-          <div><dt>LAST SEEN</dt><dd id="last-seen">--</dd></div>
-          <div><dt>LOCATION</dt><dd id="location">--</dd></div>
+          <div><dt data-i18n="common.confidence">CONFIDENCE</dt><dd><b id="confidence">0%</b><span class="meter"><i id="confidence-meter"></i></span></dd></div>
+          <div><dt data-i18n="dossier.lastSeen">LAST SEEN</dt><dd id="last-seen">--</dd></div>
+          <div><dt data-i18n="dossier.location">LOCATION</dt><dd id="location">--</dd></div>
         </dl>
         <section class="data-section">
-          <header><h3>ALIASES</h3><span id="alias-count">00</span></header>
+          <header><h3 data-i18n="dossier.aliases">ALIASES</h3><span id="alias-count">00</span></header>
           <ul class="token-list" id="aliases"></ul>
         </section>
         <section class="data-section">
-          <header><h3>IDENTIFIERS</h3><span id="identifier-count">00</span></header>
+          <header><h3 data-i18n="dossier.identifiers">IDENTIFIERS</h3><span id="identifier-count">00</span></header>
           <dl class="identifier-list" id="identifiers"></dl>
         </section>
         <section class="data-section relations-section">
-          <header><h3>RELATED ENTITIES</h3><span id="relation-count">00</span></header>
+          <header><h3 data-i18n="dossier.related">RELATED ENTITIES</h3><span id="relation-count">00</span></header>
           <ul class="relation-list" id="relations"></ul>
         </section>
       </aside>
 
       <section class="timeline panel" id="timeline" aria-labelledby="timeline-title">
         <div class="panel-heading timeline-heading">
-          <div><span class="section-code">02</span><h1 id="timeline-title">INVESTIGATION CHRONOLOGY</h1></div>
-          <div class="timeline-stats"><span><b id="visible-count">00</b> EVENTS</span><span><b id="verified-count">00</b> VERIFIED</span></div>
+          <div><span class="section-code">02</span><h1 id="timeline-title" data-i18n="timeline.title">INVESTIGATION CHRONOLOGY</h1></div>
+          <div class="timeline-stats"><span><b id="visible-count">00</b> <i data-i18n="timeline.events">EVENTS</i></span><span><b id="verified-count">00</b> <i data-i18n="common.verified">VERIFIED</i></span></div>
         </div>
         <div class="filterbar">
           <div class="segmented" id="type-filters" aria-label="Фильтр по типу">
-            <button class="active" type="button" data-filter="all">ALL</button>
+            <button class="active" type="button" data-filter="all" data-i18n="common.all">ALL</button>
             <button type="button" data-filter="identity">ID</button>
             <button type="button" data-filter="infrastructure">NET</button>
             <button type="button" data-filter="media">MEDIA</button>
             <button type="button" data-filter="social">SOC</button>
             <button type="button" data-filter="financial">FIN</button>
           </div>
-          <label class="status-filter">STATUS
+          <label class="status-filter"><span data-i18n="common.status">STATUS</span>
             <select id="status-filter" disabled>
-              <option value="all">ALL</option>
-              <option value="verified">VERIFIED</option>
-              <option value="pending">PENDING</option>
+              <option value="all" data-i18n="common.all">ALL</option>
+              <option value="verified" data-i18n="common.verified">VERIFIED</option>
+              <option value="pending" data-i18n="common.pending">PENDING</option>
             </select>
           </label>
         </div>
         <div class="timeline-list" id="timeline-list" tabindex="0"></div>
         <div class="empty-state" id="empty-state" hidden>
-          <span>00</span><strong>NO MATCHING SIGNALS</strong><p>Adjust filters or search query.</p>
+          <span>00</span><strong data-i18n="timeline.empty">NO MATCHING SIGNALS</strong><p data-i18n="timeline.emptyHint">Adjust filters or search query.</p>
         </div>
       </section>
 
       <aside class="evidence panel" aria-labelledby="evidence-title">
         <div class="panel-heading">
-          <div><span class="section-code">03</span><h1 id="evidence-title">EVIDENCE INSPECTOR</h1></div>
+          <div><span class="section-code">03</span><h1 id="evidence-title" data-i18n="evidence.title">EVIDENCE INSPECTOR</h1></div>
           <span class="event-id" id="event-id">NO EVENT</span>
         </div>
         <div id="evidence-content" class="evidence-content">
-          <div class="loading-block"><span></span><b>LOADING CASE DATA</b></div>
+          <div class="loading-block"><span></span><b data-i18n="state.loadingCase">LOADING CASE DATA</b></div>
         </div>
       </aside>
     </main>
 
     <footer class="commandbar">
       <span class="prompt" aria-hidden="true">&gt;_</span>
-      <label><span class="visually-hidden">Командная строка</span><input id="command-input" autocomplete="off" spellcheck="false" placeholder="TYPE COMMAND OR 'HELP'" disabled></label>
-      <output id="command-output">SYSTEM INITIALIZING</output>
-      <button type="button" id="open-palette" title="Открыть палитру команд" disabled>COMMANDS</button>
+      <label><span class="visually-hidden" data-i18n="command.label">Command line</span><input id="command-input" autocomplete="off" spellcheck="false" placeholder="TYPE COMMAND OR 'HELP'" data-i18n-placeholder="command.placeholder" disabled></label>
+      <output id="command-output" data-i18n="state.initializing">SYSTEM INITIALIZING</output>
+      <button type="button" id="open-palette" data-i18n-title="command.open" disabled><span data-i18n="command.commands">COMMANDS</span></button>
     </footer>
   </div>
 
   <dialog id="command-palette" class="command-palette">
     <form method="dialog" class="palette-shell">
-      <header><div><span class="section-code">CMD</span><h2>COMMAND INDEX</h2></div><button value="cancel" aria-label="Закрыть">X</button></header>
-      <label><span>&gt;</span><input id="palette-input" autocomplete="off" placeholder="FILTER COMMANDS"></label>
+      <header><div><span class="section-code">CMD</span><h2 data-i18n="command.index">COMMAND INDEX</h2></div><button value="cancel" data-i18n-aria-label="common.close">X</button></header>
+      <label><span>&gt;</span><input id="palette-input" autocomplete="off" placeholder="FILTER COMMANDS" data-i18n-placeholder="command.filter"></label>
       <div class="command-list" id="command-list"></div>
-      <footer><span>ENTER RUN</span><span>ESC CLOSE</span></footer>
+      <footer><span data-i18n="command.enterRun">ENTER RUN</span><span data-i18n="command.escClose">ESC CLOSE</span></footer>
     </form>
   </dialog>
 
@@ -135,19 +149,35 @@
       <h2 class="evidence-title"></h2>
       <p class="evidence-summary"></p>
       <dl class="evidence-meta">
-        <div><dt>SOURCE</dt><dd class="meta-source"></dd></div>
-        <div><dt>CAPTURED</dt><dd class="meta-time"></dd></div>
-        <div><dt>CONFIDENCE</dt><dd><b class="meta-confidence"></b><span class="meter"><i></i></span></dd></div>
-        <div><dt>FINGERPRINT</dt><dd class="meta-fingerprint"></dd></div>
+        <div><dt data-i18n="evidence.source">SOURCE</dt><dd class="meta-source"></dd></div>
+        <div><dt data-i18n="evidence.captured">CAPTURED</dt><dd class="meta-time"></dd></div>
+        <div><dt data-i18n="common.confidence">CONFIDENCE</dt><dd><b class="meta-confidence"></b><span class="meter"><i></i></span></dd></div>
+        <div><dt data-i18n="evidence.fingerprint">FINGERPRINT</dt><dd class="meta-fingerprint"></dd></div>
       </dl>
-      <section class="indicator-section"><h3>INDICATORS</h3><ul class="indicator-list"></ul></section>
-      <section class="notes-section"><header><h3>ANALYST NOTES</h3><span class="note-count"></span></header><ul class="notes-list"></ul>
-        <form class="note-form"><label><span class="visually-hidden">Новая заметка</span><textarea maxlength="280" rows="2" placeholder="ADD NOTE..."></textarea></label><button type="submit">ADD</button></form>
+      <section class="indicator-section"><h3 data-i18n="evidence.indicators">INDICATORS</h3><ul class="indicator-list"></ul></section>
+      <section class="notes-section"><header><h3 data-i18n="evidence.notes">ANALYST NOTES</h3><span class="note-count"></span></header><ul class="notes-list"></ul>
+        <form class="note-form"><label><span class="visually-hidden" data-i18n="evidence.newNote">New note</span><textarea maxlength="280" rows="2" placeholder="ADD NOTE..." data-i18n-placeholder="evidence.addNote"></textarea></label><button type="submit" data-i18n="common.add">ADD</button></form>
       </section>
-      <div class="evidence-actions"><button class="verify-button" type="button"></button><button class="copy-button" type="button">COPY HASH</button></div>
+      <div class="evidence-actions"><button class="verify-button" type="button"></button><button class="copy-button" type="button" data-i18n="evidence.copyHash">COPY HASH</button></div>
     </article>
   </template>
 
+  <dialog id="dossier-dialog" class="dossier-dialog">
+    <section class="dossier-editor">
+      <header>
+        <div><span class="section-code">OBS</span><div><h2 data-i18n="connector.editorTitle">OBSIDIAN DOSSIER</h2><p id="dossier-path">--</p></div></div>
+        <div class="editor-status"><span id="dossier-sync-state">--</span><button type="button" id="dossier-close" data-i18n-aria-label="common.close">X</button></div>
+      </header>
+      <div class="editor-toolbar">
+        <p id="connector-message" data-i18n="connector.checking">Checking vault connection...</p>
+        <div><button type="button" id="dossier-refresh" data-i18n="connector.reload">RELOAD</button><button type="button" id="dossier-save" data-i18n="connector.save">SAVE TO VAULT</button></div>
+      </div>
+      <label class="markdown-editor"><span class="visually-hidden" data-i18n="connector.markdownLabel">Dossier Markdown</span><textarea id="dossier-content" spellcheck="true" disabled></textarea></label>
+      <footer><span>MARKDOWN / UTF-8</span><span id="dossier-stats">0 CHARS</span></footer>
+    </section>
+  </dialog>
+
+  <script src="i18n.js"></script>
   <script src="app.js"></script>
 </body>
 </html>
