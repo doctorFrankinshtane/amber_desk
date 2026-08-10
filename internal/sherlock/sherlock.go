@@ -256,18 +256,18 @@ func ParseCSV(reader io.Reader, username string) (ScanReport, error) {
 			}
 			return strings.TrimSpace(record[index])
 		}
-		profileURL, err := safeHTTPURL(field("url_user"))
+		status := normalizeStatus(field("exists"))
+		profileURL, err := optionalHTTPURL(field("url_user"))
 		if err != nil {
 			return ScanReport{}, fmt.Errorf("invalid Sherlock profile URL: %w", err)
 		}
-		mainURL := ""
-		if field("url_main") != "" {
-			mainURL, err = safeHTTPURL(field("url_main"))
-			if err != nil {
-				return ScanReport{}, fmt.Errorf("invalid Sherlock main URL: %w", err)
-			}
+		mainURL, err := optionalHTTPURL(field("url_main"))
+		if err != nil {
+			return ScanReport{}, fmt.Errorf("invalid Sherlock main URL: %w", err)
 		}
-		status := normalizeStatus(field("exists"))
+		if status == "claimed" && profileURL == "" {
+			status = "unknown"
+		}
 		httpStatus, _ := strconv.Atoi(field("http_status"))
 		seconds, _ := strconv.ParseFloat(field("response_time_s"), 64)
 		site := limited(field("name"), 160)
@@ -277,8 +277,11 @@ func ParseCSV(reader io.Reader, username string) (ScanReport, error) {
 	return ScanReport{Username: username, Results: results}, nil
 }
 
-func safeHTTPURL(value string) (string, error) {
-	if len(value) == 0 || len(value) > 2048 {
+func optionalHTTPURL(value string) (string, error) {
+	if value == "" {
+		return "", nil
+	}
+	if len(value) > 2048 {
 		return "", errors.New("URL length is invalid")
 	}
 	parsed, err := url.Parse(value)

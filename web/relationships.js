@@ -392,8 +392,8 @@ window.AmberRelations = (() => {
     el["sherlock-results"].replaceChildren(...visible.map((result) => {
       const row = document.createElement("div"); row.className = `sherlock-result${["claimed", "available"].includes(result.status) ? "" : " problem"}`;
       const checkbox = document.createElement("input"); checkbox.type = "checkbox"; checkbox.dataset.resultId = result.id; checkbox.disabled = result.status !== "claimed"; checkbox.checked = state.sherlock.selected.has(result.id);
-      const copy = document.createElement("span"), name = document.createElement("b"), link = document.createElement("a"), status = document.createElement("em");
-      name.textContent = result.site; link.textContent = result.profileUrl; link.title = result.profileUrl; link.href = result.profileUrl; link.target = "_blank"; link.rel = "noreferrer noopener"; status.textContent = result.status.toUpperCase(); copy.append(name, link); row.append(checkbox, copy, status); return row;
+      const copy = document.createElement("span"), name = document.createElement("b"), link = document.createElement(result.profileUrl ? "a" : "small"), status = document.createElement("em");
+      name.textContent = result.site; link.textContent = result.profileUrl || "NO PROFILE URL"; link.title = result.profileUrl || ""; if (result.profileUrl) { link.href = result.profileUrl; link.target = "_blank"; link.rel = "noreferrer noopener"; } status.textContent = result.status.toUpperCase(); copy.append(name, link); row.append(checkbox, copy, status); return row;
     }));
     updateSherlockImportButton();
   }

@@ -303,8 +303,8 @@ button:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-
 .sherlock-results { max-height: 235px; overflow-y: auto; }
 .sherlock-result { display: grid; grid-template-columns: 20px minmax(0, 1fr) auto; align-items: center; gap: 4px; min-height: 38px; padding: 4px 6px; border-bottom: 1px dotted #432b14; }
 .sherlock-result input { width: 14px; margin: 0; padding: 0; accent-color: var(--ink); }
-.sherlock-result span { min-width: 0; }.sherlock-result b, .sherlock-result a { display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.sherlock-result b { color: var(--ink-bright); font-size: 8px; }.sherlock-result a { margin-top: 3px; color: var(--ink-dim); font-size: 6px; text-decoration: none; }.sherlock-result a:hover { color: var(--ink-bright); text-decoration: underline; }
+.sherlock-result span { min-width: 0; }.sherlock-result b, .sherlock-result a, .sherlock-result small { display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.sherlock-result b { color: var(--ink-bright); font-size: 8px; }.sherlock-result a, .sherlock-result small { margin-top: 3px; color: var(--ink-dim); font-size: 6px; text-decoration: none; }.sherlock-result a:hover { color: var(--ink-bright); text-decoration: underline; }
 .sherlock-result em { color: var(--verified); font-size: 6px; font-style: normal; }.sherlock-result.problem em { color: var(--alert); }
 .sherlock-actions { display: grid; grid-template-columns: 1fr 1fr; }
 .sherlock-actions button { min-height: 34px; border: 0; border-right: 1px solid #432b14; background: transparent; font-size: 7px; }.sherlock-actions button:last-child { border: 0; background: var(--ink); color: var(--base); }

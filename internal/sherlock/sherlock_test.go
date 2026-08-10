@@ -23,6 +23,17 @@ func TestParseCSVRejectsUnsafeURL(t *testing.T) {
 	}
 }
 
+func TestParseCSVAllowsMissingURLForUnavailableSite(t *testing.T) {
+	input := "username,name,url_main,url_user,exists,http_status,response_time_s\nhandle,Rate Limited,,,Unknown,429,0.1\nhandle,Illegal,,,Illegal,0,\n"
+	report, err := ParseCSV(strings.NewReader(input), "handle")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(report.Results) != 2 || report.Results[0].ProfileURL != "" || report.Results[0].Status != "unknown" || report.Results[1].Status != "illegal" {
+		t.Fatalf("unexpected report: %+v", report)
+	}
+}
+
 func TestValidUsername(t *testing.T) {
 	for _, value := range []string{"handle", "john.doe", "name_1", "a-b"} {
 		if !ValidUsername(value) {
