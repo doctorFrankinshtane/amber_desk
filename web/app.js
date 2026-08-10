@@ -86,10 +86,14 @@ function bindEvents() {
   document.addEventListener("amber:case-created", (event) => {
     state.caseData = event.detail.case;
     state.selectedID = null;
+    state.dossier = null;
+    state.dossierDirty = false;
+    elements["dossier-content"].value = "";
     state.timelineBackend = event.detail.sync.backend || "memory";
     elements["timeline-backend"].textContent = state.timelineBackend.toUpperCase();
     renderCase();
     commandMessage(event.detail.sync.state === "sync_pending" ? "DOSSIER CREATED / SYNC PENDING" : "DOSSIER CREATED");
+    if (elements["dossier-dialog"].open) loadDossier(false);
   });
   window.addEventListener("beforeunload", (event) => {
     if (!state.dossierDirty) return;
@@ -301,6 +305,7 @@ async function saveDossier() {
     const dossier = await request("/api/integrations/obsidian/dossier", {
       method: "PUT",
       body: JSON.stringify({
+        caseId: state.dossier.caseId,
         content: elements["dossier-content"].value,
         expectedModifiedAt: state.dossier.modifiedAt || "",
       }),

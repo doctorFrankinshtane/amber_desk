@@ -2,6 +2,7 @@ package httpapi
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"net/http"
 	"strconv"
@@ -129,6 +130,15 @@ func (h *Handler) syncCreatedCase(ctx context.Context, caseData casefile.Case, n
 	dossier, err := connector.WriteDossier(ctx, ref, connectors.DossierWrite{Content: dossierMarkdown(caseData)})
 	if err != nil {
 		return caseSyncStatus{State: "sync_pending", Backend: connector.Metadata().ID, Message: err.Error()}
+	}
+	if stateConnector, ok := connector.(connectors.WorkspaceStateConnector); ok {
+		state, marshalErr := json.MarshalIndent(caseData, "", "  ")
+		if marshalErr != nil {
+			return caseSyncStatus{State: "sync_pending", Backend: connector.Metadata().ID, Path: dossier.Path, Message: marshalErr.Error()}
+		}
+		if err := stateConnector.WriteWorkspaceState(ctx, "active-case", state); err != nil {
+			return caseSyncStatus{State: "sync_pending", Backend: connector.Metadata().ID, Path: dossier.Path, Message: err.Error()}
+		}
 	}
 	if graph, ok := connector.(connectors.RelationshipConnector); ok {
 		for _, node := range nodes {

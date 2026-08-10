@@ -30,6 +30,7 @@ type Connector = internal.Connector
 type TimelineConnector = internal.TimelineConnector
 type MapConnector = internal.MapConnector
 type RelationshipConnector = internal.RelationshipConnector
+type WorkspaceStateConnector = internal.WorkspaceStateConnector
 type Registry = internal.Registry
 
 func NewRegistry(items ...Connector) *Registry {

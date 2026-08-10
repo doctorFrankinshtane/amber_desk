@@ -114,6 +114,11 @@ func TestCreateDossierSynchronizesObsidian(t *testing.T) {
 	if len(dossiers) != 1 || len(nodes) != 2 || len(edges) != 1 {
 		t.Fatalf("synced files: dossiers=%v nodes=%v edges=%v", dossiers, nodes, edges)
 	}
+	stateConnector := any(provider).(connectors.WorkspaceStateConnector)
+	state, err := stateConnector.ReadWorkspaceState(context.Background(), "active-case")
+	if err != nil || !strings.Contains(string(state), `"name": "CASE ORION"`) {
+		t.Fatalf("persisted active case: %v %s", err, state)
+	}
 }
 
 func TestMemoryTimelineAndMapWorkflow(t *testing.T) {
@@ -219,9 +224,13 @@ func TestIntegrationDossierWorkflow(t *testing.T) {
 		t.Fatalf("unexpected dossier response: %d %s", readResponse.Code, readResponse.Body.String())
 	}
 
-	writeResponse := request(t, handler, http.MethodPut, "/api/integrations/test/dossier", `{"content":"Updated dossier"}`)
+	writeResponse := request(t, handler, http.MethodPut, "/api/integrations/test/dossier", `{"caseId":"CASE-001","content":"Updated dossier"}`)
 	if writeResponse.Code != http.StatusOK || !strings.Contains(writeResponse.Body.String(), "Updated dossier") {
 		t.Fatalf("unexpected write response: %d %s", writeResponse.Code, writeResponse.Body.String())
+	}
+	staleResponse := request(t, handler, http.MethodPut, "/api/integrations/test/dossier", `{"caseId":"CASE-OLD","content":"Stale dossier"}`)
+	if staleResponse.Code != http.StatusConflict {
+		t.Fatalf("stale dossier write = %d %s", staleResponse.Code, staleResponse.Body.String())
 	}
 }
 

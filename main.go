@@ -2,7 +2,10 @@ package main
 
 import (
 	"bytes"
+	"context"
 	"embed"
+	"encoding/json"
+	"errors"
 	"fmt"
 	"io/fs"
 	"log"
@@ -28,7 +31,6 @@ func main() {
 		log.Fatal(err)
 	}
 
-	store := casefile.NewStore(casefile.BlankCase())
 	catalogData, err := fs.ReadFile(webFiles, "web/data/osint-framework.json")
 	if err != nil {
 		log.Fatalf("load OSINT catalog: %v", err)
@@ -46,6 +48,18 @@ func main() {
 	if err != nil {
 		log.Fatalf("configure obsidian connector: %v", err)
 	}
+	initialCase := casefile.BlankCase()
+	if stateConnector, ok := any(obsidianConnector).(connectors.WorkspaceStateConnector); ok {
+		if data, stateErr := stateConnector.ReadWorkspaceState(context.Background(), "active-case"); stateErr == nil {
+			if decodeErr := json.Unmarshal(data, &initialCase); decodeErr != nil {
+				log.Printf("ignore invalid persisted case state: %v", decodeErr)
+				initialCase = casefile.BlankCase()
+			}
+		} else if !errors.Is(stateErr, connectors.ErrEntityAbsent) && !errors.Is(stateErr, connectors.ErrNotConfigured) {
+			log.Printf("load persisted case state: %v", stateErr)
+		}
+	}
+	store := casefile.NewStore(initialCase)
 	registry := connectors.NewRegistry(obsidianConnector)
 	handler := httpapi.NewWithConfig(store, registry, webRoot, httpapi.Config{Catalog: catalogProvider, MapTiles: httpapi.MapTileConfig{
 		Directory: os.Getenv("MAP_TILE_DIR"),

@@ -39,6 +39,7 @@ type DossierRef struct {
 }
 
 type Dossier struct {
+	CaseID     string `json:"caseId"`
 	Content    string `json:"content"`
 	Path       string `json:"path"`
 	Exists     bool   `json:"exists"`
@@ -170,6 +171,14 @@ type RelationshipConnector interface {
 	CreateRelationshipEdge(context.Context, DossierRef, RelationshipEdge) (RelationshipEdge, error)
 	UpdateRelationshipEdge(context.Context, DossierRef, RelationshipEdge) (RelationshipEdge, error)
 	DeleteRelationshipEdge(context.Context, DossierRef, string) error
+}
+
+// WorkspaceStateConnector persists small opaque core snapshots without coupling
+// extension providers to Amber Desk's internal case model.
+type WorkspaceStateConnector interface {
+	Connector
+	ReadWorkspaceState(context.Context, string) ([]byte, error)
+	WriteWorkspaceState(context.Context, string, []byte) error
 }
 
 type Registry struct {

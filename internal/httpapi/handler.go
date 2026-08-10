@@ -94,11 +94,13 @@ func (h *Handler) readDossier(w http.ResponseWriter, r *http.Request) {
 	if !ok {
 		return
 	}
-	dossier, err := connector.ReadDossier(r.Context(), h.dossierRef())
+	ref := h.dossierRef()
+	dossier, err := connector.ReadDossier(r.Context(), ref)
 	if err != nil {
 		writeConnectorError(w, err)
 		return
 	}
+	dossier.CaseID = ref.CaseID
 	writeJSON(w, http.StatusOK, dossier)
 }
 
@@ -108,6 +110,7 @@ func (h *Handler) writeDossier(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	var input struct {
+		CaseID             string `json:"caseId"`
 		Content            string `json:"content"`
 		ExpectedModifiedAt string `json:"expectedModifiedAt"`
 	}
@@ -119,11 +122,17 @@ func (h *Handler) writeDossier(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusRequestEntityTooLarge, "dossier exceeds 1 MiB")
 		return
 	}
-	dossier, err := connector.WriteDossier(r.Context(), h.dossierRef(), connectors.DossierWrite{Content: input.Content, ExpectedModifiedAt: input.ExpectedModifiedAt})
+	ref := h.dossierRef()
+	if input.CaseID == "" || input.CaseID != ref.CaseID {
+		writeError(w, http.StatusConflict, "active case changed; reload the dossier before saving")
+		return
+	}
+	dossier, err := connector.WriteDossier(r.Context(), ref, connectors.DossierWrite{Content: input.Content, ExpectedModifiedAt: input.ExpectedModifiedAt})
 	if err != nil {
 		writeConnectorError(w, err)
 		return
 	}
+	dossier.CaseID = ref.CaseID
 	writeJSON(w, http.StatusOK, dossier)
 }
 

@@ -15,7 +15,9 @@ type Connector interface {
 }
 ```
 
-Storage families are optional capability interfaces. A provider may implement `TimelineConnector`, `MapConnector`, both, or neither. The generic HTTP layer selects a connected provider by the capabilities declared in metadata and falls back to memory when no provider is available.
+Storage families are optional capability interfaces. A provider may implement `TimelineConnector`, `MapConnector`, `RelationshipConnector`, or `WorkspaceStateConnector`. The generic HTTP layer selects a connected provider by the capabilities declared in metadata and falls back to memory when no provider is available.
+
+`WorkspaceStateConnector` stores small opaque snapshots such as `active-case`. It keeps provider packages independent from the internal case model while allowing a workspace to survive process restarts. Providers must validate state keys, keep state local to their configured storage root, and write snapshots atomically.
 
 Register the implementation in `main.go` with `connectors.NewRegistry`. The HTTP layer discovers it through the registry; connector-specific filesystem or network logic must not enter `internal/httpapi` or the browser case model.
 
@@ -27,6 +29,7 @@ Every connector must expose:
 - A human-readable name and description
 - Explicit capabilities such as `dossier.read`, `timeline.write`, and `map.read`
 - Relationship capabilities `relationships.read` and `relationships.write` for clue cards, positions, and sourced threads
+- Workspace state capabilities `workspace.state.read` and `workspace.state.write` when the provider can restore the active workspace
 - Whether required configuration is present
 - A health state: `connected`, `unconfigured`, `offline`, or `error`
 
@@ -41,6 +44,8 @@ Validate configuration at startup when possible. A missing optional connector co
 ## Dossier Semantics
 
 `DossierRef` identifies the current case without exposing the internal store. `DossierWrite.ExpectedModifiedAt` provides optimistic concurrency. Connectors that support external editing must return `connectors.ErrConflict` when the remote version changed after it was read.
+
+The HTTP dossier response includes `caseId`, and clients must return it on `PUT`. The backend rejects a write when that value no longer matches the active case, preventing a stale editor opened on one investigation from overwriting another investigation's dossier.
 
 Connector writes should be transactional when the external system allows it. The Obsidian implementation writes a temporary file in the destination directory, flushes it, and renames it over the Markdown document.
 
