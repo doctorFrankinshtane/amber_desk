@@ -149,14 +149,24 @@ button:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-
 .map-form-actions button:last-child { border-color: var(--ink); background: var(--ink); color: var(--base); }
 #route-inspector p { color: var(--ink-bright); font-size: 9px; overflow-wrap: anywhere; }
 .leaflet-container { font-family: var(--font); }
+.leaflet-countryLabels-pane, .leaflet-cityLabels-pane { pointer-events: none; }
+.amber-country-label { width: max-content !important; color: #765226; font-size: 7px; font-weight: 700; text-transform: uppercase; white-space: nowrap; text-shadow: 0 1px #080604, 1px 0 #080604, 0 -1px #080604, -1px 0 #080604; opacity: .7; }
+.amber-city-label { display: flex !important; align-items: center; gap: 4px; width: 110px !important; color: #b87b32; font-size: 7px; white-space: nowrap; text-shadow: 0 1px #080604, 1px 0 #080604, 0 -1px #080604, -1px 0 #080604; }
+.amber-city-label i { flex: 0 0 auto; width: 3px; height: 3px; background: #c98c3d; box-shadow: 0 0 4px #f5b94e66; }
+.amber-city-label.capital { color: var(--ink-bright); font-weight: 700; }
+.amber-city-label.capital i { width: 5px; height: 5px; border: 1px solid var(--ink-bright); background: #0a0705; }
 .leaflet-control-zoom { border: 1px solid var(--line) !important; border-radius: 0 !important; }
 .leaflet-control-zoom a { border: 0 !important; border-bottom: 1px solid var(--line) !important; border-radius: 0 !important; background: #0b0805 !important; color: var(--ink-bright) !important; }
+.leaflet-control-attribution { border: 1px solid #3b2814; border-radius: 0 !important; background: #080604d9 !important; color: #6d4b25 !important; font: 6px var(--font) !important; }
 .amber-map-icon { background: transparent; border: 0; }
 .amber-map-icon span { display: grid; place-items: center; width: 28px; height: 28px; border: 1px solid var(--ink-bright); background: #120d08; color: var(--ink-bright); box-shadow: 0 0 0 3px #0c0906aa, 0 0 12px #f5b94e55; font-size: 8px; }
 .amber-map-icon span:before, .amber-map-icon span:after { content: ""; position: absolute; background: var(--ink); }
 .amber-map-icon span:before { left: 2px; right: 2px; top: 13px; height: 1px; }
 .amber-map-icon span:after { top: 2px; bottom: 2px; left: 13px; width: 1px; }
 .amber-map-icon.route-origin span { background: var(--ink); color: var(--base); }
+.amber-object-label, .amber-route-label { border: 1px solid var(--line) !important; border-radius: 0 !important; background: #090604e8 !important; color: var(--ink-bright) !important; box-shadow: none !important; font: 7px/1 var(--font) !important; }
+.amber-object-label:before, .amber-route-label:before { display: none; }
+.amber-route-label { color: var(--ink) !important; opacity: .85; }
 
 .event-dialog { width: min(520px, calc(100vw - 24px)); padding: 0; border: 1px solid var(--ink); border-radius: 0; background: #0b0805; color: var(--ink); }
 .event-dialog::backdrop { background: #050302dc; }

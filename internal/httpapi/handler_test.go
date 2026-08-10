@@ -5,6 +5,8 @@ import (
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
+	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 	"testing/fstest"
@@ -108,6 +110,33 @@ func TestRoutesTimelineWritesThroughObsidianCapability(t *testing.T) {
 	timelineResponse := request(t, handler, http.MethodGet, "/api/timeline", "")
 	if timelineResponse.Code != http.StatusOK || !strings.Contains(timelineResponse.Body.String(), `"backend":"obsidian"`) || !strings.Contains(timelineResponse.Body.String(), `"status":"verified"`) {
 		t.Fatalf("Obsidian timeline: %d %s", timelineResponse.Code, timelineResponse.Body.String())
+	}
+}
+
+func TestServesConfiguredLocalMapTiles(t *testing.T) {
+	tileRoot := t.TempDir()
+	tileDirectory := filepath.Join(tileRoot, "0", "0")
+	if err := os.MkdirAll(tileDirectory, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	tile := []byte("local tile bytes")
+	if err := os.WriteFile(filepath.Join(tileDirectory, "0.png"), tile, 0o600); err != nil {
+		t.Fatal(err)
+	}
+	web := fstest.MapFS{"index.html": {Data: []byte("<title>Amber Desk</title>")}}
+	handler := httpapi.NewWithConfig(casefile.NewStore(casefile.DemoCase()), connectors.NewRegistry(&fakeConnector{}), web, httpapi.Config{MapTiles: httpapi.MapTileConfig{Directory: tileRoot, Extension: "png", MaxZoom: 18}})
+
+	configResponse := request(t, handler, http.MethodGet, "/api/map/basemap", "")
+	if configResponse.Code != http.StatusOK || !strings.Contains(configResponse.Body.String(), `"mode":"local_xyz"`) {
+		t.Fatalf("basemap config: %d %s", configResponse.Code, configResponse.Body.String())
+	}
+	tileResponse := request(t, handler, http.MethodGet, "/api/map/tiles/0/0/0", "")
+	if tileResponse.Code != http.StatusOK || tileResponse.Body.String() != string(tile) {
+		t.Fatalf("map tile: %d %q", tileResponse.Code, tileResponse.Body.String())
+	}
+	invalidResponse := request(t, handler, http.MethodGet, "/api/map/tiles/0/1/0", "")
+	if invalidResponse.Code != http.StatusNotFound {
+		t.Fatalf("invalid map tile = %d", invalidResponse.Code)
 	}
 }
 

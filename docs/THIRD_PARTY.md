@@ -13,10 +13,10 @@ The complete Leaflet license text is included at `web/vendor/leaflet/LICENSE`.
 
 ## Natural Earth
 
-- Dataset: Natural Earth 1:110m Admin 0 Countries
+- Datasets: Natural Earth 1:50m countries, states/provinces, populated places, urban areas, lakes and rivers; Natural Earth 1:10m roads, filtered to major routes and simplified for local rendering
 - Project: https://www.naturalearthdata.com/
 - Source distribution: https://github.com/nvkelso/natural-earth-vector
 - License: public domain
-- Vendored derivative: `web/data/world.geojson`
+- Vendored derivatives: `web/data/world.geojson`, `web/data/cities.geojson`
 
 Natural Earth requests attribution but does not require it. Amber Desk includes this notice to preserve provenance.

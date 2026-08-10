@@ -21,10 +21,19 @@ type Handler struct {
 	mapMu      sync.Mutex
 	markers    []connectors.MapMarker
 	routes     []connectors.MapRoute
+	mapTiles   MapTileConfig
 }
 
 func New(store *casefile.Store, registry *connectors.Registry, webFiles fs.FS) http.Handler {
-	h := &Handler{store: store, connectors: registry, web: http.FileServer(http.FS(webFiles))}
+	return NewWithConfig(store, registry, webFiles, Config{})
+}
+
+type Config struct {
+	MapTiles MapTileConfig
+}
+
+func NewWithConfig(store *casefile.Store, registry *connectors.Registry, webFiles fs.FS, config Config) http.Handler {
+	h := &Handler{store: store, connectors: registry, web: http.FileServer(http.FS(webFiles)), mapTiles: config.MapTiles.normalized()}
 	mux := http.NewServeMux()
 	mux.HandleFunc("GET /api/health", h.health)
 	mux.HandleFunc("GET /api/case", h.getCase)
@@ -39,6 +48,8 @@ func New(store *casefile.Store, registry *connectors.Registry, webFiles fs.FS) h
 	mux.HandleFunc("DELETE /api/map/markers/{id}", h.deleteMapMarker)
 	mux.HandleFunc("POST /api/map/routes", h.createMapRoute)
 	mux.HandleFunc("DELETE /api/map/routes/{id}", h.deleteMapRoute)
+	mux.HandleFunc("GET /api/map/basemap", h.getBasemap)
+	mux.HandleFunc("GET /api/map/tiles/{z}/{x}/{y}", h.getMapTile)
 	mux.HandleFunc("GET /api/integrations", h.listIntegrations)
 	mux.HandleFunc("GET /api/integrations/{id}/dossier", h.readDossier)
 	mux.HandleFunc("PUT /api/integrations/{id}/dossier", h.writeDossier)

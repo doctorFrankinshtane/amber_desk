@@ -7,6 +7,7 @@ import (
 	"log"
 	"net/http"
 	"os"
+	"strconv"
 	"time"
 
 	"amberdesk/internal/casefile"
@@ -33,7 +34,12 @@ func main() {
 		log.Fatalf("configure obsidian connector: %v", err)
 	}
 	registry := connectors.NewRegistry(obsidianConnector)
-	handler := httpapi.New(store, registry, webRoot)
+	handler := httpapi.NewWithConfig(store, registry, webRoot, httpapi.Config{MapTiles: httpapi.MapTileConfig{
+		Directory: os.Getenv("MAP_TILE_DIR"),
+		Extension: envOr("MAP_TILE_EXT", "png"),
+		MinZoom:   envInt("MAP_TILE_MIN_ZOOM", 0),
+		MaxZoom:   envInt("MAP_TILE_MAX_ZOOM", 18),
+	}})
 	addr := envOr("ADDR", ":8080")
 
 	server := &http.Server{
@@ -47,6 +53,14 @@ func main() {
 	if err := server.ListenAndServe(); err != nil && err != http.ErrServerClosed {
 		log.Fatal(err)
 	}
+}
+
+func envInt(name string, fallback int) int {
+	value, err := strconv.Atoi(os.Getenv(name))
+	if err != nil {
+		return fallback
+	}
+	return value
 }
 
 func envOr(name, fallback string) string {
