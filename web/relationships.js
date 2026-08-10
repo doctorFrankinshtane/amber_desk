@@ -363,11 +363,13 @@ window.AmberRelations = (() => {
   function connectSherlockStream(scanID) {
     state.sherlock.stream?.close();
     const stream = new EventSource(`/api/tools/sherlock/scans/${encodeURIComponent(scanID)}/events`); state.sherlock.stream = stream;
-    stream.addEventListener("snapshot", (event) => updateSherlockScan(JSON.parse(event.data)));
+    stream.addEventListener("snapshot", (event) => {
+      const scan = JSON.parse(event.data); updateSherlockScan(scan);
+      if (["completed", "failed", "cancelled"].includes(scan.state)) stream.close();
+    });
     ["progress", "log", "completed", "failed", "cancelled"].forEach((type) => stream.addEventListener(type, (event) => {
       const payload = JSON.parse(event.data); if (payload.message) el["sherlock-log"].textContent = payload.message;
       if (payload.checked !== undefined) { el["sherlock-checked"].textContent = payload.checked; el["sherlock-claimed"].textContent = payload.claimed || 0; el["sherlock-errors"].textContent = payload.errors || 0; }
-      if (["completed", "failed", "cancelled"].includes(type)) stream.close();
     }));
     stream.onerror = () => { if (["queued", "running"].includes(state.sherlock.scan?.state)) el["sherlock-log"].textContent = "STREAM INTERRUPTED / RECONNECTING"; };
   }
