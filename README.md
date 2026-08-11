@@ -11,7 +11,7 @@
 <p align="center">
   <a href="https://github.com/doctorFrankinshtane/amber_desk/actions/workflows/ci.yml"><img alt="CI status" src="https://github.com/doctorFrankinshtane/amber_desk/actions/workflows/ci.yml/badge.svg?branch=master"></a>
   <img alt="Development status" src="https://img.shields.io/badge/status-active%20development-F2A23A?style=flat-square">
-  <img alt="Go 1.22 or newer" src="https://img.shields.io/badge/Go-1.22%2B-F2A23A?style=flat-square&logo=go&logoColor=090604">
+  <img alt="Go 1.25 or newer" src="https://img.shields.io/badge/Go-1.25%2B-F2A23A?style=flat-square&logo=go&logoColor=090604">
   <img alt="Leaflet 1.9.4" src="https://img.shields.io/badge/Leaflet-1.9.4-F2A23A?style=flat-square&logo=leaflet&logoColor=090604">
   <img alt="Vanilla JavaScript ES2020 or newer" src="https://img.shields.io/badge/JavaScript-ES2020%2B-F2A23A?style=flat-square&logo=javascript&logoColor=090604">
 </p>
@@ -43,12 +43,13 @@ Amber Desk keeps investigation data on your machine and presents it in a dense a
 
 | Layer | Version |
 | --- | --- |
-| Backend | Go `1.22+` |
+| Backend | Go `1.25+` (CI also validates Go `1.26`) |
 | Frontend | HTML5, CSS3, Vanilla JavaScript `ES2020+` |
 | Maps | Leaflet `1.9.4` |
 | Markdown metadata | `gopkg.in/yaml.v3` `3.0.1` |
 | Optional username search | Sherlock `0.16.0` |
 | Primary local storage | Obsidian-compatible Markdown, no plugin required |
+| Browser smoke tests | Playwright `1.62.1` (development only) |
 
 ## Quick Start
 
@@ -73,12 +74,13 @@ Amber Desk creates its own directories inside the selected vault. Existing unrel
 
 | Variable | Default | Purpose |
 | --- | --- | --- |
-| `ADDR` | `:8080` | Local HTTP listen address |
+| `ADDR` | `127.0.0.1:8080` | Local HTTP listen address |
 | `OBSIDIAN_VAULT` | unset | Absolute path to an Obsidian vault |
 | `OBSIDIAN_DOSSIER_DIR` | `Amber Desk/Dossiers` | Dossier directory inside the vault |
 | `MAP_TILE_DIR` | unset | Absolute path to a local raster XYZ pack |
 | `SHERLOCK_PYTHON` | project-local runtime | Supported Sherlock Python executable |
 | `ALLOW_REMOTE_TOOL_RUNS` | `0` | Allow process tools beyond localhost |
+| `ALLOW_REMOTE_ACCESS` | `0` | Accept non-loopback HTTP hosts; requires separate network access controls |
 
 See [.env.example](.env.example) and the [English](docs/USER_GUIDE.md) or [Russian](docs/USER_GUIDE_RU.md) guide for complete setup and privacy boundaries.
 

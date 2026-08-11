@@ -40,8 +40,14 @@ func (h *Handler) createCase(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	caseData.ID = strings.ToUpper(newID("CASE")[:13])
+	previous := h.store.Snapshot()
+	nodes, edges := seedRelationships(caseData)
+	syncStatus, syncErr := h.syncCreatedCase(r.Context(), caseData, nodes, edges, previous.ID)
+	if syncErr != nil {
+		writeError(w, http.StatusBadGateway, syncErr.Error())
+		return
+	}
 	created := h.store.Replace(caseData)
-	nodes, edges := seedRelationships(created)
 	h.relationMu.Lock()
 	h.nodes, h.edges = cloneRelationshipNodes(nodes), cloneRelationshipEdges(edges)
 	h.relationMu.Unlock()
@@ -49,7 +55,6 @@ func (h *Handler) createCase(w http.ResponseWriter, r *http.Request) {
 	h.markers, h.routes = []connectors.MapMarker{}, []connectors.MapRoute{}
 	h.mapMu.Unlock()
 
-	syncStatus := h.syncCreatedCase(r.Context(), created, nodes, edges)
 	writeJSON(w, http.StatusCreated, createCaseResponse{Case: created, Relationships: connectors.RelationshipSnapshot{Nodes: nodes, Edges: edges, Backend: syncStatus.Backend}, Sync: syncStatus})
 }
 
@@ -118,50 +123,65 @@ func normalizeCase(input casefile.Case) (casefile.Case, error) {
 	return input, nil
 }
 
-func (h *Handler) syncCreatedCase(ctx context.Context, caseData casefile.Case, nodes []connectors.RelationshipNode, edges []connectors.RelationshipEdge) caseSyncStatus {
+func (h *Handler) syncCreatedCase(ctx context.Context, caseData casefile.Case, nodes []connectors.RelationshipNode, edges []connectors.RelationshipEdge, previousCaseID string) (caseSyncStatus, error) {
 	connector, ok := h.activeDossierConnector(ctx)
 	if !ok {
-		return caseSyncStatus{State: "memory", Backend: "memory"}
+		return caseSyncStatus{State: "memory", Backend: "memory"}, nil
 	}
+	backend := connector.Metadata().ID
 	ref := connectors.DossierRef{CaseID: caseData.ID, CaseName: caseData.Name, SubjectName: caseData.Subject.Codename}
-	dossier, err := connector.WriteDossier(ctx, ref, connectors.DossierWrite{Content: dossierMarkdown(caseData)})
+	state, err := json.MarshalIndent(caseData, "", "  ")
 	if err != nil {
-		return caseSyncStatus{State: "sync_pending", Backend: connector.Metadata().ID, Message: err.Error()}
+		return caseSyncStatus{}, fmt.Errorf("encode case state: %w", err)
 	}
-	if caseStore, ok := connector.(connectors.CaseStoreConnector); ok {
-		state, marshalErr := json.MarshalIndent(caseData, "", "  ")
-		if marshalErr != nil {
-			return caseSyncStatus{State: "sync_pending", Backend: connector.Metadata().ID, Path: dossier.Path, Message: marshalErr.Error()}
+	caseStore, durableCases := connector.(connectors.CaseStoreConnector)
+	casePersisted := false
+	rollback := func(syncErr error) (caseSyncStatus, error) {
+		if !casePersisted {
+			return caseSyncStatus{}, fmt.Errorf("synchronize new case: %w", syncErr)
 		}
+		_, rollbackErr := caseStore.TrashCase(ctx, caseData.ID)
+		if rollbackErr == nil && previousCaseID != "" && previousCaseID != casefile.BlankCase().ID {
+			rollbackErr = caseStore.SetActiveCase(ctx, previousCaseID)
+		}
+		if rollbackErr != nil {
+			return caseSyncStatus{}, fmt.Errorf("synchronize new case: %v; rollback: %w", syncErr, rollbackErr)
+		}
+		return caseSyncStatus{}, fmt.Errorf("synchronize new case: %w", syncErr)
+	}
+	if durableCases {
 		summary := connectors.CaseSummary{ID: caseData.ID, Name: caseData.Name, Subject: caseData.Subject.Codename, Status: caseData.Status, UpdatedAt: caseData.UpdatedAt}
 		if err := caseStore.WriteCase(ctx, summary, state); err != nil {
-			return caseSyncStatus{State: "sync_pending", Backend: connector.Metadata().ID, Path: dossier.Path, Message: err.Error()}
+			return caseSyncStatus{}, fmt.Errorf("persist case state: %w", err)
 		}
-		if err := caseStore.SetActiveCase(ctx, caseData.ID); err != nil {
-			return caseSyncStatus{State: "sync_pending", Backend: connector.Metadata().ID, Path: dossier.Path, Message: err.Error()}
-		}
-	} else if stateConnector, ok := connector.(connectors.WorkspaceStateConnector); ok {
-		state, marshalErr := json.MarshalIndent(caseData, "", "  ")
-		if marshalErr != nil {
-			return caseSyncStatus{State: "sync_pending", Backend: connector.Metadata().ID, Path: dossier.Path, Message: marshalErr.Error()}
-		}
-		if err := stateConnector.WriteWorkspaceState(ctx, "active-case", state); err != nil {
-			return caseSyncStatus{State: "sync_pending", Backend: connector.Metadata().ID, Path: dossier.Path, Message: err.Error()}
-		}
+		casePersisted = true
+	}
+	dossier, err := connector.WriteDossier(ctx, ref, connectors.DossierWrite{Content: dossierMarkdown(caseData)})
+	if err != nil {
+		return rollback(err)
 	}
 	if graph, ok := connector.(connectors.RelationshipConnector); ok {
 		for _, node := range nodes {
 			if _, err := graph.CreateRelationshipNode(ctx, ref, node); err != nil {
-				return caseSyncStatus{State: "sync_pending", Backend: connector.Metadata().ID, Path: dossier.Path, Message: err.Error()}
+				return rollback(err)
 			}
 		}
 		for _, edge := range edges {
 			if _, err := graph.CreateRelationshipEdge(ctx, ref, edge); err != nil {
-				return caseSyncStatus{State: "sync_pending", Backend: connector.Metadata().ID, Path: dossier.Path, Message: err.Error()}
+				return rollback(err)
 			}
 		}
 	}
-	return caseSyncStatus{State: "synced", Backend: connector.Metadata().ID, Path: dossier.Path}
+	if durableCases {
+		if err := caseStore.SetActiveCase(ctx, caseData.ID); err != nil {
+			return rollback(err)
+		}
+	} else if stateConnector, ok := connector.(connectors.WorkspaceStateConnector); ok {
+		if err := stateConnector.WriteWorkspaceState(ctx, "active-case", state); err != nil {
+			return caseSyncStatus{}, fmt.Errorf("persist active case: %w", err)
+		}
+	}
+	return caseSyncStatus{State: "synced", Backend: backend, Path: dossier.Path}, nil
 }
 
 func (h *Handler) activeDossierConnector(ctx context.Context) (connectors.Connector, bool) {
@@ -197,8 +217,9 @@ func dossierMarkdown(value casefile.Case) string {
 
 func limited(value string, max int) string {
 	value = strings.TrimSpace(strings.ReplaceAll(value, "\x00", ""))
-	if len(value) > max {
-		value = value[:max]
+	runes := []rune(value)
+	if len(runes) > max {
+		value = string(runes[:max])
 	}
 	return value
 }

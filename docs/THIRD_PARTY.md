@@ -26,7 +26,7 @@ The complete Cytoscape.js license text is included at `web/vendor/cytoscape/LICE
 - Project: https://www.naturalearthdata.com/
 - Source distribution: https://github.com/nvkelso/natural-earth-vector
 - License: public domain
-- Vendored derivatives: `web/data/world.geojson`, `web/data/cities.geojson`
+- Vendored derivatives: `web/data/world.geojson`, `web/data/cities.geojson`, and the remaining GeoJSON files in `web/data/`, including zoom-partitioned road layers
 
 Natural Earth requests attribution but does not require it. Amber Desk includes this notice to preserve provenance.
 
@@ -47,3 +47,7 @@ Catalog data is derived from OSINT Framework by Justin Nordine. The complete ups
 - Distribution: optional project-local Python environment created by `tools/sherlock/setup.ps1` or `setup.sh`
 
 Sherlock is not vendored into Amber Desk. Its package and dependencies are installed only when an operator runs the setup script. A scan contacts supported third-party sites with the submitted username; Amber Desk requires explicit confirmation for each run.
+
+## Development tooling
+
+- Playwright `1.62.1` runs the CI browser smoke test and is not part of the Amber Desk runtime.

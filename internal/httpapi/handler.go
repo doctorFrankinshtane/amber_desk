@@ -1,12 +1,19 @@
 package httpapi
 
 import (
+	"bytes"
 	"context"
+	"crypto/sha256"
+	"encoding/hex"
 	"encoding/json"
 	"errors"
 	"io"
 	"io/fs"
+	"mime"
+	"net"
 	"net/http"
+	"net/url"
+	"path"
 	"strings"
 	"sync"
 	"time"
@@ -37,6 +44,7 @@ type Handler struct {
 	catalog          catalog.Provider
 	sherlock         *sherlock.Manager
 	allowRemoteTools bool
+	allowRemote      bool
 }
 
 func New(store *casefile.Store, registry *connectors.Registry, webFiles fs.FS) http.Handler {
@@ -48,6 +56,7 @@ type Config struct {
 	Catalog             catalog.Provider
 	SherlockRunner      sherlock.Runner
 	AllowRemoteToolRuns bool
+	AllowRemoteAccess   bool
 	ToolContext         context.Context
 }
 
@@ -56,7 +65,7 @@ func NewWithConfig(store *casefile.Store, registry *connectors.Registry, webFile
 	if toolContext == nil {
 		toolContext = context.Background()
 	}
-	h := &Handler{store: store, connectors: registry, web: http.FileServer(http.FS(webFiles)), mapTiles: config.MapTiles.normalized(), catalog: config.Catalog, attachments: make(map[string]map[string]memoryAttachment), checklists: make(map[string]connectors.ChecklistSnapshot), sherlock: sherlock.NewManager(toolContext, config.SherlockRunner), allowRemoteTools: config.AllowRemoteToolRuns}
+	h := &Handler{store: store, connectors: registry, web: staticHandler(webFiles), mapTiles: config.MapTiles.normalized(), catalog: config.Catalog, attachments: make(map[string]map[string]memoryAttachment), checklists: make(map[string]connectors.ChecklistSnapshot), sherlock: sherlock.NewManager(toolContext, config.SherlockRunner), allowRemoteTools: config.AllowRemoteToolRuns, allowRemote: config.AllowRemoteAccess}
 	mux := http.NewServeMux()
 	mux.HandleFunc("GET /api/health", h.health)
 	mux.HandleFunc("GET /api/case", h.getCase)
@@ -106,7 +115,7 @@ func NewWithConfig(store *casefile.Store, registry *connectors.Registry, webFile
 	mux.HandleFunc("GET /api/integrations/{id}/dossier", h.readDossier)
 	mux.HandleFunc("PUT /api/integrations/{id}/dossier", h.writeDossier)
 	mux.Handle("/", h.web)
-	return securityHeaders(mux)
+	return securityHeaders(h.requestGuard(mux))
 }
 
 func (h *Handler) getCatalog(w http.ResponseWriter, r *http.Request) {
@@ -151,7 +160,11 @@ func (h *Handler) writeDossier(w http.ResponseWriter, r *http.Request) {
 		Content            string `json:"content"`
 		ExpectedModifiedAt string `json:"expectedModifiedAt"`
 	}
-	if err := decodeJSON(r, &input); err != nil {
+	if err := decodeJSONLimit(r, &input, maxDossierJSONBodySize); err != nil {
+		if errors.Is(err, errRequestBodyTooLarge) {
+			writeError(w, http.StatusRequestEntityTooLarge, "dossier request exceeds 6 MiB")
+			return
+		}
 		writeError(w, http.StatusBadRequest, "invalid request body")
 		return
 	}
@@ -285,10 +298,38 @@ func (h *Handler) deleteEvent(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, map[string]string{"deletedId": eventID})
 }
 
+const (
+	maxJSONBodySize        = 64 << 10
+	maxDossierJSONBodySize = 6 << 20
+)
+
+var errRequestBodyTooLarge = errors.New("request body is too large")
+
 func decodeJSON(r *http.Request, target any) error {
-	decoder := json.NewDecoder(io.LimitReader(r.Body, 64<<10))
+	return decodeJSONLimit(r, target, maxJSONBodySize)
+}
+
+func decodeJSONLimit(r *http.Request, target any, maximum int64) error {
+	data, err := io.ReadAll(io.LimitReader(r.Body, maximum+1))
+	if err != nil {
+		return err
+	}
+	if int64(len(data)) > maximum {
+		return errRequestBodyTooLarge
+	}
+	decoder := json.NewDecoder(bytes.NewReader(data))
 	decoder.DisallowUnknownFields()
-	return decoder.Decode(target)
+	if err := decoder.Decode(target); err != nil {
+		return err
+	}
+	var trailing any
+	if err := decoder.Decode(&trailing); !errors.Is(err, io.EOF) {
+		if err == nil {
+			return errors.New("request body must contain one JSON value")
+		}
+		return err
+	}
+	return nil
 }
 
 func writeJSON(w http.ResponseWriter, status int, value any) {
@@ -332,8 +373,121 @@ func writeConnectorError(w http.ResponseWriter, err error) {
 func securityHeaders(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("X-Content-Type-Options", "nosniff")
+		w.Header().Set("X-Frame-Options", "DENY")
 		w.Header().Set("Referrer-Policy", "no-referrer")
-		w.Header().Set("Content-Security-Policy", "default-src 'self'; style-src 'self' 'unsafe-inline'; script-src 'self'; img-src 'self' data:")
+		w.Header().Set("Permissions-Policy", "camera=(), geolocation=(), microphone=()")
+		w.Header().Set("Content-Security-Policy", "default-src 'self'; base-uri 'none'; frame-ancestors 'none'; form-action 'self'; style-src 'self' 'unsafe-inline'; script-src 'self'; img-src 'self' data:")
+		if strings.HasPrefix(r.URL.Path, "/api/") {
+			w.Header().Set("Cache-Control", "no-store")
+		}
 		next.ServeHTTP(w, r)
+	})
+}
+
+func (h *Handler) requestGuard(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if !h.allowRemote && !isLoopbackHost(r.Host) {
+			writeError(w, http.StatusForbidden, "Amber Desk is limited to localhost")
+			return
+		}
+		if strings.HasPrefix(r.URL.Path, "/api/") {
+			if strings.EqualFold(r.Header.Get("Sec-Fetch-Site"), "cross-site") {
+				writeError(w, http.StatusForbidden, "cross-site API requests are not allowed")
+				return
+			}
+			if origin := r.Header.Get("Origin"); origin != "" && !sameOriginHost(origin, r.Host) {
+				writeError(w, http.StatusForbidden, "foreign origin is not allowed")
+				return
+			}
+			if isMutation(r.Method) {
+				if !validMutationMediaType(r) {
+					writeError(w, http.StatusUnsupportedMediaType, "application/json is required")
+					return
+				}
+				if !isAttachmentUpload(r) {
+					maximum := int64(maxJSONBodySize)
+					if strings.HasPrefix(r.URL.Path, "/api/integrations/") && strings.HasSuffix(r.URL.Path, "/dossier") {
+						maximum = maxDossierJSONBodySize
+					}
+					if r.ContentLength > maximum {
+						writeError(w, http.StatusRequestEntityTooLarge, "request body is too large")
+						return
+					}
+				}
+			}
+		}
+		next.ServeHTTP(w, r)
+	})
+}
+
+func isLoopbackHost(value string) bool {
+	host := value
+	if parsed, _, err := net.SplitHostPort(value); err == nil {
+		host = parsed
+	}
+	host = strings.Trim(strings.ToLower(host), "[]")
+	if host == "localhost" {
+		return true
+	}
+	ip := net.ParseIP(host)
+	return ip != nil && ip.IsLoopback()
+}
+
+func sameOriginHost(origin, requestHost string) bool {
+	parsed, err := url.Parse(origin)
+	return err == nil && parsed.Host != "" && strings.EqualFold(parsed.Host, requestHost)
+}
+
+func isMutation(method string) bool {
+	return method == http.MethodPost || method == http.MethodPut || method == http.MethodPatch || method == http.MethodDelete
+}
+
+func validMutationMediaType(r *http.Request) bool {
+	if r.Method == http.MethodDelete && r.ContentLength == 0 {
+		return true
+	}
+	mediaType, _, err := mime.ParseMediaType(r.Header.Get("Content-Type"))
+	if err != nil {
+		return false
+	}
+	if isAttachmentUpload(r) {
+		return mediaType == "multipart/form-data"
+	}
+	return mediaType == "application/json"
+}
+
+func isAttachmentUpload(r *http.Request) bool {
+	return r.Method == http.MethodPost && strings.HasPrefix(r.URL.Path, "/api/relationships/nodes/") && strings.HasSuffix(r.URL.Path, "/attachments")
+}
+
+func staticHandler(files fs.FS) http.Handler {
+	etags := make(map[string]string)
+	_ = fs.WalkDir(files, ".", func(name string, entry fs.DirEntry, walkErr error) error {
+		if walkErr != nil || entry.IsDir() {
+			return nil
+		}
+		data, err := fs.ReadFile(files, name)
+		if err != nil {
+			return nil
+		}
+		sum := sha256.Sum256(data)
+		etag := `"` + hex.EncodeToString(sum[:16]) + `"`
+		etags["/"+path.Clean(name)] = etag
+		if name == "index.html" {
+			etags["/"] = etag
+		}
+		return nil
+	})
+	server := http.FileServer(http.FS(files))
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if etag := etags[r.URL.Path]; etag != "" {
+			w.Header().Set("Cache-Control", "private, no-cache")
+			w.Header().Set("ETag", etag)
+			if r.Header.Get("If-None-Match") == etag {
+				w.WriteHeader(http.StatusNotModified)
+				return
+			}
+		}
+		server.ServeHTTP(w, r)
 	})
 }

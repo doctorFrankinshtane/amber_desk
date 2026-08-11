@@ -14,7 +14,7 @@ Amber Desk is an early-stage investigation workspace, not a production evidence-
 
 Requirements:
 
-- Go 1.22 or newer
+- Go 1.25 or newer
 - A current desktop browser
 - Optional: an existing Obsidian vault
 - Optional: Python and the bundled Sherlock setup script
@@ -32,7 +32,7 @@ Open <http://localhost:8080>.
 To use another port in PowerShell:
 
 ```powershell
-$env:ADDR = ":8081"
+$env:ADDR = "127.0.0.1:8081"
 go run .
 ```
 
@@ -320,7 +320,8 @@ The file changed after Amber Desk loaded it. Press **RELOAD**, review the extern
 - Run the setup script and read its error output.
 - If using `SHERLOCK_PYTHON`, point it to the Python executable, not the environment directory.
 - Restart Amber Desk.
-- Run from `localhost`, or leave `ALLOW_REMOTE_TOOL_RUNS=0` for the default restriction.
+- Keep `ADDR` on `127.0.0.1` and leave `ALLOW_REMOTE_ACCESS=0`. Remote HTTP access must be an explicit deployment decision with separate network access controls.
+- Run tools from `localhost`, or leave `ALLOW_REMOTE_TOOL_RUNS=0` for the default restriction.
 
 ### Sherlock shows problems or invalid profile URLs
 

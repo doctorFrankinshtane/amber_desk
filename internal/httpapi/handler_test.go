@@ -16,6 +16,7 @@ import (
 	"strings"
 	"testing"
 	"testing/fstest"
+	"unicode/utf8"
 
 	"amberdesk/internal/casefile"
 	"amberdesk/internal/connectors"
@@ -70,6 +71,155 @@ func TestStatusValidation(t *testing.T) {
 	response := request(t, handler, http.MethodPatch, "/api/events/EV-108/status", `{"status":"discarded"}`)
 	if response.Code != http.StatusBadRequest {
 		t.Fatalf("status = %d, want %d", response.Code, http.StatusBadRequest)
+	}
+}
+
+func TestRequestSecurityPolicy(t *testing.T) {
+	handler := newHandler()
+
+	remote := httptest.NewRequest(http.MethodGet, "/api/health", nil)
+	remote.Host = "amberdesk.lan"
+	remoteResponse := httptest.NewRecorder()
+	handler.ServeHTTP(remoteResponse, remote)
+	if remoteResponse.Code != http.StatusForbidden {
+		t.Fatalf("remote Host status = %d, want %d", remoteResponse.Code, http.StatusForbidden)
+	}
+
+	foreignOrigin := httptest.NewRequest(http.MethodGet, "/api/health", nil)
+	foreignOrigin.Host = "localhost"
+	foreignOrigin.Header.Set("Origin", "https://example.test")
+	foreignResponse := httptest.NewRecorder()
+	handler.ServeHTTP(foreignResponse, foreignOrigin)
+	if foreignResponse.Code != http.StatusForbidden {
+		t.Fatalf("foreign Origin status = %d, want %d", foreignResponse.Code, http.StatusForbidden)
+	}
+
+	crossSite := httptest.NewRequest(http.MethodGet, "/api/health", nil)
+	crossSite.Host = "localhost"
+	crossSite.Header.Set("Sec-Fetch-Site", "cross-site")
+	crossSiteResponse := httptest.NewRecorder()
+	handler.ServeHTTP(crossSiteResponse, crossSite)
+	if crossSiteResponse.Code != http.StatusForbidden {
+		t.Fatalf("cross-site status = %d, want %d", crossSiteResponse.Code, http.StatusForbidden)
+	}
+
+	plainText := httptest.NewRequest(http.MethodPost, "/api/timeline/events", strings.NewReader(`{"title":"unsafe"}`))
+	plainText.Host = "localhost"
+	plainText.Header.Set("Content-Type", "text/plain")
+	plainTextResponse := httptest.NewRecorder()
+	handler.ServeHTTP(plainTextResponse, plainText)
+	if plainTextResponse.Code != http.StatusUnsupportedMediaType {
+		t.Fatalf("plain text status = %d, want %d", plainTextResponse.Code, http.StatusUnsupportedMediaType)
+	}
+}
+
+func TestRemoteAccessRequiresExplicitOptIn(t *testing.T) {
+	web := fstest.MapFS{"index.html": {Data: []byte("Amber Desk")}}
+	handler := httpapi.NewWithConfig(casefile.NewStore(casefile.BlankCase()), connectors.NewRegistry(), web, httpapi.Config{AllowRemoteAccess: true})
+	req := httptest.NewRequest(http.MethodGet, "/api/health", nil)
+	req.Host = "amberdesk.lan"
+	response := httptest.NewRecorder()
+	handler.ServeHTTP(response, req)
+	if response.Code != http.StatusOK {
+		t.Fatalf("explicit remote access status = %d: %s", response.Code, response.Body.String())
+	}
+}
+
+func TestResponseCachePoliciesAndStaticETag(t *testing.T) {
+	handler := newHandler()
+	apiResponse := request(t, handler, http.MethodGet, "/api/health", "")
+	if got := apiResponse.Header().Get("Cache-Control"); got != "no-store" {
+		t.Fatalf("API Cache-Control = %q", got)
+	}
+	if got := apiResponse.Header().Get("X-Frame-Options"); got != "DENY" {
+		t.Fatalf("X-Frame-Options = %q", got)
+	}
+
+	page := request(t, handler, http.MethodGet, "/", "")
+	etag := page.Header().Get("ETag")
+	if etag == "" || page.Header().Get("Cache-Control") != "private, no-cache" {
+		t.Fatalf("static cache headers = ETag %q, Cache-Control %q", etag, page.Header().Get("Cache-Control"))
+	}
+	conditional := httptest.NewRequest(http.MethodGet, "/", nil)
+	conditional.Host = "localhost"
+	conditional.Header.Set("If-None-Match", etag)
+	conditionalResponse := httptest.NewRecorder()
+	handler.ServeHTTP(conditionalResponse, conditional)
+	if conditionalResponse.Code != http.StatusNotModified || conditionalResponse.Body.Len() != 0 {
+		t.Fatalf("conditional response = %d, body %q", conditionalResponse.Code, conditionalResponse.Body.String())
+	}
+}
+
+func TestStrictJSONLimits(t *testing.T) {
+	handler := newHandler()
+	trailing := request(t, handler, http.MethodPost, "/api/case", `{"name":"first"}{"name":"second"}`)
+	if trailing.Code != http.StatusBadRequest {
+		t.Fatalf("trailing JSON status = %d, want %d", trailing.Code, http.StatusBadRequest)
+	}
+
+	oversizedGeneric := request(t, handler, http.MethodPost, "/api/timeline/events", `{"title":"`+strings.Repeat("a", 70<<10)+`"}`)
+	if oversizedGeneric.Code != http.StatusRequestEntityTooLarge {
+		t.Fatalf("oversized generic status = %d, want %d", oversizedGeneric.Code, http.StatusRequestEntityTooLarge)
+	}
+
+	largeDossier, err := json.Marshal(map[string]string{
+		"caseId":  casefile.BlankCase().ID,
+		"content": strings.Repeat("d", 128<<10),
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	dossierResponse := request(t, handler, http.MethodPut, "/api/integrations/test/dossier", string(largeDossier))
+	if dossierResponse.Code != http.StatusOK {
+		t.Fatalf("large dossier status = %d: %s", dossierResponse.Code, dossierResponse.Body.String())
+	}
+}
+
+func TestMemoryTimelinePreservesOccurredAt(t *testing.T) {
+	handler := newHandler()
+	const occurredAt = "2024-02-29T18:37:15+05:00"
+	created := request(t, handler, http.MethodPost, "/api/timeline/events", `{"occurredAt":"`+occurredAt+`","title":"Verified sighting","confidence":82}`)
+	if created.Code != http.StatusCreated {
+		t.Fatalf("create timeline event: %d %s", created.Code, created.Body.String())
+	}
+	var event connectors.TimelineEvent
+	decode(t, created, &event)
+	if event.OccurredAt != occurredAt {
+		t.Fatalf("created occurredAt = %q, want %q", event.OccurredAt, occurredAt)
+	}
+
+	listed := request(t, handler, http.MethodGet, "/api/timeline", "")
+	var snapshot connectors.TimelineSnapshot
+	decode(t, listed, &snapshot)
+	if len(snapshot.Events) != 1 || snapshot.Events[0].OccurredAt != occurredAt {
+		t.Fatalf("listed timeline = %+v", snapshot.Events)
+	}
+}
+
+func TestCaseTextLimitsPreserveUTF8(t *testing.T) {
+	handler := newHandler()
+	name := strings.Repeat("Я", 121)
+	body, err := json.Marshal(map[string]any{
+		"name": name,
+		"subject": map[string]any{
+			"codename": "СУБЪЕКТ", "risk": "low", "confidence": 50,
+			"aliases": []string{}, "identifiers": []any{}, "relations": []any{},
+		},
+		"tags": []string{},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	created := request(t, handler, http.MethodPost, "/api/case", string(body))
+	if created.Code != http.StatusCreated {
+		t.Fatalf("create UTF-8 case: %d %s", created.Code, created.Body.String())
+	}
+	var response struct {
+		Case casefile.Case `json:"case"`
+	}
+	decode(t, created, &response)
+	if !utf8.ValidString(response.Case.Name) || utf8.RuneCountInString(response.Case.Name) != 120 {
+		t.Fatalf("limited case name is invalid: %q", response.Case.Name)
 	}
 }
 
@@ -128,6 +278,25 @@ func TestCreateDossierSynchronizesObsidian(t *testing.T) {
 	state, err := caseStore.ReadCase(context.Background(), activeID)
 	if err != nil || !strings.Contains(string(state), `"name": "CASE ORION"`) {
 		t.Fatalf("persisted active case: %v %s", err, state)
+	}
+}
+
+func TestCreateDossierRollsBackFailedPersistence(t *testing.T) {
+	connector := &failingCaseConnector{}
+	web := fstest.MapFS{"index.html": {Data: []byte("Amber Desk")}}
+	handler := httpapi.New(casefile.NewStore(casefile.BlankCase()), connectors.NewRegistry(connector), web)
+	created := request(t, handler, http.MethodPost, "/api/case", `{"name":"ROLLBACK","subject":{"codename":"TARGET","risk":"low","confidence":50,"aliases":[],"identifiers":[],"relations":[]},"tags":[]}`)
+	if created.Code != http.StatusBadGateway {
+		t.Fatalf("failed persistence status = %d: %s", created.Code, created.Body.String())
+	}
+	if !connector.written || !connector.trashed {
+		t.Fatalf("persistence written=%t trashed=%t", connector.written, connector.trashed)
+	}
+	current := request(t, handler, http.MethodGet, "/api/case", "")
+	var active casefile.Case
+	decode(t, current, &active)
+	if active.ID != casefile.BlankCase().ID || active.Subject.Codename != "UNASSIGNED" {
+		t.Fatalf("active case changed after rollback: %+v", active)
 	}
 }
 
@@ -519,6 +688,51 @@ type fakeConnector struct {
 	content string
 }
 
+type failingCaseConnector struct {
+	written bool
+	trashed bool
+}
+
+func (f *failingCaseConnector) Metadata() connectors.Metadata {
+	return connectors.Metadata{ID: "failing-cases", Name: "Failing cases", Configured: true, Capabilities: []string{"dossier.write", "cases.read", "cases.write", "cases.delete"}}
+}
+
+func (f *failingCaseConnector) Status(context.Context) connectors.Status {
+	return connectors.Status{State: "connected", Message: "test"}
+}
+
+func (f *failingCaseConnector) ReadDossier(context.Context, connectors.DossierRef) (connectors.Dossier, error) {
+	return connectors.Dossier{}, connectors.ErrEntityAbsent
+}
+
+func (f *failingCaseConnector) WriteDossier(context.Context, connectors.DossierRef, connectors.DossierWrite) (connectors.Dossier, error) {
+	return connectors.Dossier{}, errors.New("injected dossier failure")
+}
+
+func (f *failingCaseConnector) ListCases(context.Context) ([]connectors.CaseSummary, error) {
+	return []connectors.CaseSummary{}, nil
+}
+
+func (f *failingCaseConnector) ReadCase(context.Context, string) ([]byte, error) {
+	return nil, connectors.ErrEntityAbsent
+}
+
+func (f *failingCaseConnector) WriteCase(context.Context, connectors.CaseSummary, []byte) error {
+	f.written = true
+	return nil
+}
+
+func (f *failingCaseConnector) SetActiveCase(context.Context, string) error { return nil }
+
+func (f *failingCaseConnector) ActiveCaseID(context.Context) (string, error) {
+	return "", connectors.ErrEntityAbsent
+}
+
+func (f *failingCaseConnector) TrashCase(context.Context, string) (string, error) {
+	f.trashed = true
+	return "", nil
+}
+
 func (f *fakeConnector) Metadata() connectors.Metadata {
 	return connectors.Metadata{ID: "test", Name: "Test", Configured: true, Capabilities: []string{"dossier.read", "dossier.write"}}
 }
@@ -543,6 +757,7 @@ func (f *fakeConnector) WriteDossier(_ context.Context, _ connectors.DossierRef,
 func request(t *testing.T, handler http.Handler, method, path, body string) *httptest.ResponseRecorder {
 	t.Helper()
 	req := httptest.NewRequest(method, path, strings.NewReader(body))
+	req.Host = "localhost"
 	if body != "" {
 		req.Header.Set("Content-Type", "application/json")
 	}
@@ -569,6 +784,7 @@ func multipartRequest(t *testing.T, handler http.Handler, path, caseID, filename
 		t.Fatal(err)
 	}
 	req := httptest.NewRequest(http.MethodPost, path, &body)
+	req.Host = "localhost"
 	req.Header.Set("Content-Type", writer.FormDataContentType())
 	response := httptest.NewRecorder()
 	handler.ServeHTTP(response, req)

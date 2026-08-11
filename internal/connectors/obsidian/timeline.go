@@ -64,6 +64,9 @@ func (c *Connector) ListTimeline(_ context.Context, ref connectors.DossierRef) (
 }
 
 func (c *Connector) BootstrapTimeline(ctx context.Context, ref connectors.DossierRef, events []connectors.TimelineEvent) ([]connectors.TimelineEvent, error) {
+	c.timelineMu.Lock()
+	defer c.timelineMu.Unlock()
+
 	for _, event := range events {
 		path, err := c.timelinePath(ref, event.ID, true)
 		if err != nil {
@@ -82,6 +85,9 @@ func (c *Connector) BootstrapTimeline(ctx context.Context, ref connectors.Dossie
 }
 
 func (c *Connector) CreateTimelineEvent(_ context.Context, ref connectors.DossierRef, event connectors.TimelineEvent) (connectors.TimelineEvent, error) {
+	c.timelineMu.Lock()
+	defer c.timelineMu.Unlock()
+
 	now := time.Now().UTC()
 	if event.ID == "" {
 		var err error
@@ -119,6 +125,9 @@ func (c *Connector) CreateTimelineEvent(_ context.Context, ref connectors.Dossie
 }
 
 func (c *Connector) SetTimelineStatus(_ context.Context, ref connectors.DossierRef, eventID, status string) (connectors.TimelineEvent, error) {
+	c.timelineMu.Lock()
+	defer c.timelineMu.Unlock()
+
 	if status != "pending" && status != "verified" {
 		return connectors.TimelineEvent{}, errors.New("status must be pending or verified")
 	}
@@ -134,6 +143,9 @@ func (c *Connector) SetTimelineStatus(_ context.Context, ref connectors.DossierR
 }
 
 func (c *Connector) AddTimelineNote(_ context.Context, ref connectors.DossierRef, eventID string, note connectors.TimelineNote) (connectors.TimelineEvent, error) {
+	c.timelineMu.Lock()
+	defer c.timelineMu.Unlock()
+
 	note.Text = strings.TrimSpace(note.Text)
 	if note.Text == "" {
 		return connectors.TimelineEvent{}, errors.New("note text is required")
@@ -150,6 +162,9 @@ func (c *Connector) AddTimelineNote(_ context.Context, ref connectors.DossierRef
 }
 
 func (c *Connector) DeleteTimelineEvent(_ context.Context, ref connectors.DossierRef, eventID string) error {
+	c.timelineMu.Lock()
+	defer c.timelineMu.Unlock()
+
 	path, err := c.timelinePath(ref, eventID, false)
 	if err != nil {
 		return err

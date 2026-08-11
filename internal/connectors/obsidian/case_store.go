@@ -27,6 +27,9 @@ type activeCasePointer struct {
 }
 
 func (c *Connector) ListCases(_ context.Context) ([]connectors.CaseSummary, error) {
+	c.caseMu.Lock()
+	defer c.caseMu.Unlock()
+
 	index, err := c.loadCaseIndex()
 	if err != nil {
 		return nil, err
@@ -49,6 +52,12 @@ func (c *Connector) ListCases(_ context.Context) ([]connectors.CaseSummary, erro
 }
 
 func (c *Connector) ReadCase(_ context.Context, caseID string) ([]byte, error) {
+	c.caseMu.Lock()
+	defer c.caseMu.Unlock()
+	return c.readCase(caseID)
+}
+
+func (c *Connector) readCase(caseID string) ([]byte, error) {
 	path, err := c.caseSnapshotPath(caseID, false)
 	if err != nil {
 		return nil, err
@@ -64,6 +73,9 @@ func (c *Connector) ReadCase(_ context.Context, caseID string) ([]byte, error) {
 }
 
 func (c *Connector) WriteCase(_ context.Context, summary connectors.CaseSummary, data []byte) error {
+	c.caseMu.Lock()
+	defer c.caseMu.Unlock()
+
 	if !caseIDPattern.MatchString(summary.ID) || summary.Name == "" || summary.Subject == "" {
 		return errors.New("invalid case summary")
 	}
@@ -71,12 +83,16 @@ func (c *Connector) WriteCase(_ context.Context, summary connectors.CaseSummary,
 	if err != nil {
 		return err
 	}
-	if err := atomicWrite(path, data); err != nil {
-		return fmt.Errorf("write case snapshot: %w", err)
-	}
 	index, err := c.loadCaseIndex()
 	if err != nil {
 		return err
+	}
+	previous, previousErr := os.ReadFile(path)
+	if previousErr != nil && !errors.Is(previousErr, os.ErrNotExist) {
+		return fmt.Errorf("read previous case snapshot: %w", previousErr)
+	}
+	if err := atomicWrite(path, data); err != nil {
+		return fmt.Errorf("write case snapshot: %w", err)
 	}
 	summary.Active = false
 	found := false
@@ -90,10 +106,24 @@ func (c *Connector) WriteCase(_ context.Context, summary connectors.CaseSummary,
 	if !found {
 		index.Cases = append(index.Cases, summary)
 	}
-	return c.writeCaseIndex(index)
+	if err := c.writeCaseIndex(index); err != nil {
+		if previousErr == nil {
+			_ = atomicWrite(path, previous)
+		} else {
+			_ = os.Remove(path)
+		}
+		return err
+	}
+	return nil
 }
 
 func (c *Connector) SetActiveCase(_ context.Context, caseID string) error {
+	c.caseMu.Lock()
+	defer c.caseMu.Unlock()
+	return c.setActiveCase(caseID)
+}
+
+func (c *Connector) setActiveCase(caseID string) error {
 	if caseID != "" {
 		index, err := c.loadCaseIndex()
 		if err != nil {
@@ -119,10 +149,15 @@ func (c *Connector) SetActiveCase(_ context.Context, caseID string) error {
 }
 
 func (c *Connector) ActiveCaseID(_ context.Context) (string, error) {
+	c.caseMu.Lock()
+	defer c.caseMu.Unlock()
 	return c.activeCaseID()
 }
 
 func (c *Connector) TrashCase(_ context.Context, caseID string) (string, error) {
+	c.caseMu.Lock()
+	defer c.caseMu.Unlock()
+
 	if !caseIDPattern.MatchString(caseID) {
 		return "", connectors.ErrEntityAbsent
 	}
@@ -147,7 +182,7 @@ func (c *Connector) TrashCase(_ context.Context, caseID string) (string, error) 
 	next := ""
 	if len(remaining) > 0 {
 		next = remaining[0].ID
-		if _, err := c.ReadCase(context.Background(), next); err != nil {
+		if _, err := c.readCase(next); err != nil {
 			return "", fmt.Errorf("validate next case snapshot: %w", err)
 		}
 	}
@@ -214,10 +249,10 @@ func (c *Connector) TrashCase(_ context.Context, caseID string) (string, error) 
 		rollback()
 		return "", err
 	}
-	if err := c.SetActiveCase(context.Background(), next); err != nil {
+	if err := c.setActiveCase(next); err != nil {
 		rollback()
 		_ = c.writeCaseIndex(originalIndex)
-		_ = c.SetActiveCase(context.Background(), caseID)
+		_ = c.setActiveCase(caseID)
 		return "", err
 	}
 	return next, nil

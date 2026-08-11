@@ -7,6 +7,7 @@ import (
 	"encoding/binary"
 	"encoding/hex"
 	"errors"
+	"fmt"
 	"image"
 	_ "image/gif"
 	_ "image/jpeg"
@@ -241,6 +242,10 @@ func (h *Handler) createRelationshipAttachment(w http.ResponseWriter, r *http.Re
 			return
 		}
 		if coverErr := h.assignFirstRelationshipCover(r.Context(), nodeID, created); coverErr != nil {
+			if rollbackErr := connector.DeleteRelationshipAttachment(r.Context(), ref, nodeID, created.ID); rollbackErr != nil {
+				writeError(w, http.StatusBadGateway, fmt.Sprintf("assign cover: %v; rollback attachment: %v", coverErr, rollbackErr))
+				return
+			}
 			writeConnectorError(w, coverErr)
 			return
 		}
@@ -261,6 +266,9 @@ func (h *Handler) createRelationshipAttachment(w http.ResponseWriter, r *http.Re
 	h.attachments[nodeID][attachment.ID] = memoryAttachment{Metadata: attachment, Content: append([]byte{}, content...)}
 	h.attachmentMu.Unlock()
 	if coverErr := h.assignFirstRelationshipCover(r.Context(), nodeID, attachment); coverErr != nil {
+		h.attachmentMu.Lock()
+		delete(h.attachments[nodeID], attachment.ID)
+		h.attachmentMu.Unlock()
 		writeConnectorError(w, coverErr)
 		return
 	}

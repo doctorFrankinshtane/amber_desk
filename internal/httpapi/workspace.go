@@ -291,8 +291,19 @@ func caseEventToTimeline(event casefile.Event, index int) connectors.TimelineEve
 	for i, note := range event.Notes {
 		notes[i] = connectors.TimelineNote{Text: note.Text, CreatedAt: note.CreatedAt}
 	}
-	occurredAt := time.Date(2026, time.August, 10, 12, 41, 0, 0, time.FixedZone("UTC+5", 5*60*60)).Add(-time.Duration(index) * 90 * time.Minute).Format(time.RFC3339)
+	occurredAt := event.OccurredAt
+	if occurredAt == "" {
+		occurredAt = legacyOccurredAt(event, index)
+	}
 	return connectors.TimelineEvent{ID: event.ID, OccurredAt: occurredAt, Time: event.Time, Date: event.Date, Type: event.Type, Title: event.Title, Summary: event.Summary, Source: event.Source, SourceURL: event.SourceURL, Confidence: event.Confidence, Status: event.Status, Fingerprint: event.Fingerprint, Indicators: append([]string(nil), event.Indicators...), Notes: notes}
+}
+
+func legacyOccurredAt(event casefile.Event, index int) string {
+	parsed, err := time.Parse("02 Jan 15:04", strings.TrimSpace(event.Date+" "+event.Time))
+	if err == nil {
+		return time.Date(1970, parsed.Month(), parsed.Day(), parsed.Hour(), parsed.Minute(), 0, 0, time.UTC).Format(time.RFC3339)
+	}
+	return time.Unix(int64(index), 0).UTC().Format(time.RFC3339)
 }
 
 func timelineToCaseEvent(event connectors.TimelineEvent) casefile.Event {
@@ -300,7 +311,7 @@ func timelineToCaseEvent(event connectors.TimelineEvent) casefile.Event {
 	for i, note := range event.Notes {
 		notes[i] = casefile.Note{Text: note.Text, CreatedAt: note.CreatedAt}
 	}
-	return casefile.Event{ID: event.ID, Time: event.Time, Date: event.Date, Type: event.Type, Title: event.Title, Summary: event.Summary, Source: event.Source, SourceURL: event.SourceURL, Confidence: event.Confidence, Status: event.Status, Fingerprint: event.Fingerprint, Indicators: append([]string(nil), event.Indicators...), Notes: notes}
+	return casefile.Event{ID: event.ID, OccurredAt: event.OccurredAt, Time: event.Time, Date: event.Date, Type: event.Type, Title: event.Title, Summary: event.Summary, Source: event.Source, SourceURL: event.SourceURL, Confidence: event.Confidence, Status: event.Status, Fingerprint: event.Fingerprint, Indicators: append([]string(nil), event.Indicators...), Notes: notes}
 }
 
 func validMarker(marker connectors.MapMarker, requireID bool) bool {

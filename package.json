@@ -1,0 +1,10 @@
+{
+  "name": "amber-desk",
+  "private": true,
+  "scripts": {
+    "test:browser": "node tests/browser-smoke.test.js"
+  },
+  "devDependencies": {
+    "playwright": "1.62.1"
+  }
+}

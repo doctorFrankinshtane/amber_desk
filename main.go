@@ -13,6 +13,7 @@ import (
 	"os"
 	"os/signal"
 	"strconv"
+	"strings"
 	"syscall"
 	"time"
 
@@ -80,31 +81,42 @@ func main() {
 	registry := connectors.NewRegistry(obsidianConnector)
 	toolContext, stopTools := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stopTools()
-	handler := httpapi.NewWithConfig(store, registry, webRoot, httpapi.Config{Catalog: catalogProvider, SherlockRunner: sherlock.NewCLIRunner(os.Getenv("SHERLOCK_PYTHON")), AllowRemoteToolRuns: os.Getenv("ALLOW_REMOTE_TOOL_RUNS") == "1", ToolContext: toolContext, MapTiles: httpapi.MapTileConfig{
+	handler := httpapi.NewWithConfig(store, registry, webRoot, httpapi.Config{Catalog: catalogProvider, SherlockRunner: sherlock.NewCLIRunner(os.Getenv("SHERLOCK_PYTHON")), AllowRemoteToolRuns: os.Getenv("ALLOW_REMOTE_TOOL_RUNS") == "1", AllowRemoteAccess: os.Getenv("ALLOW_REMOTE_ACCESS") == "1", ToolContext: toolContext, MapTiles: httpapi.MapTileConfig{
 		Directory: os.Getenv("MAP_TILE_DIR"),
 		Extension: envOr("MAP_TILE_EXT", "png"),
 		MinZoom:   envInt("MAP_TILE_MIN_ZOOM", 0),
 		MaxZoom:   envInt("MAP_TILE_MAX_ZOOM", 18),
 	}})
-	addr := envOr("ADDR", ":8080")
+	addr := envOr("ADDR", "127.0.0.1:8080")
 
 	server := &http.Server{
 		Addr:              addr,
 		Handler:           handler,
+		ReadTimeout:       30 * time.Second,
 		ReadHeaderTimeout: 5 * time.Second,
 		IdleTimeout:       60 * time.Second,
+		MaxHeaderBytes:    64 << 10,
 	}
 	go func() {
 		<-toolContext.Done()
 		shutdownContext, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 		defer cancel()
-		_ = server.Shutdown(shutdownContext)
+		if err := server.Shutdown(shutdownContext); err != nil {
+			log.Printf("graceful shutdown: %v", err)
+		}
 	}()
 
-	fmt.Printf("Amber Desk listening on http://localhost%s\n", addr)
+	fmt.Printf("Amber Desk listening on %s\n", displayURL(addr))
 	if err := server.ListenAndServe(); err != nil && err != http.ErrServerClosed {
 		log.Fatal(err)
 	}
+}
+
+func displayURL(addr string) string {
+	if strings.HasPrefix(addr, ":") {
+		return "http://localhost" + addr
+	}
+	return "http://" + addr
 }
 
 func envInt(name string, fallback int) int {

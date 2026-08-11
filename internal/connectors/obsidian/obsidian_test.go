@@ -6,6 +6,7 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"sync"
 	"testing"
 	"time"
 
@@ -46,6 +47,50 @@ func TestReadWriteDossier(t *testing.T) {
 	}
 	if overwritten.Content != "second version" {
 		t.Fatalf("unexpected overwritten content: %q", overwritten.Content)
+	}
+}
+
+func TestConcurrentDossierWritesEnforceExpectedVersion(t *testing.T) {
+	vault := t.TempDir()
+	connector, err := obsidian.New(obsidian.Config{VaultPath: vault, DossierDir: "Dossiers"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	ref := connectors.DossierRef{CaseID: "NS-04", CaseName: "NORTHSTAR"}
+	saved, err := connector.WriteDossier(context.Background(), ref, connectors.DossierWrite{Content: "initial"})
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	start := make(chan struct{})
+	results := make(chan error, 2)
+	var workers sync.WaitGroup
+	for _, content := range []string{"analyst one", "analyst two"} {
+		workers.Add(1)
+		go func(content string) {
+			defer workers.Done()
+			<-start
+			_, writeErr := connector.WriteDossier(context.Background(), ref, connectors.DossierWrite{Content: content, ExpectedModifiedAt: saved.ModifiedAt})
+			results <- writeErr
+		}(content)
+	}
+	close(start)
+	workers.Wait()
+	close(results)
+
+	succeeded, conflicted := 0, 0
+	for result := range results {
+		switch {
+		case result == nil:
+			succeeded++
+		case errors.Is(result, connectors.ErrConflict):
+			conflicted++
+		default:
+			t.Fatalf("unexpected write error: %v", result)
+		}
+	}
+	if succeeded != 1 || conflicted != 1 {
+		t.Fatalf("writes succeeded=%d conflicted=%d", succeeded, conflicted)
 	}
 }
 

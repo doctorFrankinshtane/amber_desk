@@ -1,7 +1,7 @@
 "use strict";
 
 window.AmberMap = (() => {
-  const state = { map: null, mode: "select", markers: [], routes: [], layers: new Map(), routeLayers: new Map(), detailLayers: [], countryLabels: [], cityLabels: [], localBasemap: false, routeStart: null, selectedMarker: null, selectedRoute: null, loaded: false };
+  const state = { map: null, mode: "select", markers: [], routes: [], layers: new Map(), routeLayers: new Map(), detailLayers: [], detailLoads: new Map(), countryLabels: [], cityLabels: [], localBasemap: false, routeStart: null, selectedMarker: null, selectedRoute: null, loaded: false };
   const el = {};
 
   document.addEventListener("amber:case-switched", () => { if (state.map) refresh(); });
@@ -39,16 +39,6 @@ window.AmberMap = (() => {
       fetch("data/cities.geojson").then((response) => response.json()),
     ]);
     L.geoJSON(countries, { pane: "countries", renderer: L.canvas({ pane: "countries", padding: 0.5 }), style: { color: "#755022", weight: 1, opacity: state.localBasemap ? 0.35 : 0.9, fillColor: "#120d08", fillOpacity: state.localBasemap ? 0.06 : 1 }, interactive: false }).addTo(state.map);
-    if (!state.localBasemap) {
-      const [regions, urban, rivers, lakes, roads] = await Promise.all([
-        fetch("data/regions.geojson").then((response) => response.json()),
-        fetch("data/urban.geojson").then((response) => response.json()),
-        fetch("data/rivers.geojson").then((response) => response.json()),
-        fetch("data/lakes.geojson").then((response) => response.json()),
-        fetch("data/roads.geojson").then((response) => response.json()),
-      ]);
-      buildDetailLayers({ regions, urban, rivers, lakes, roads });
-    }
     drawGrid();
     if (!state.localBasemap) {
       buildCountryLabels(countries.features || []);
@@ -121,22 +111,60 @@ window.AmberMap = (() => {
     });
   }
 
-  function buildDetailLayers(data) {
+  function buildDetailLayers(kind, data) {
     const canvas = (pane) => L.canvas({ pane, padding: 0.5 });
-    state.detailLayers = [
-      { minZoom: 2, layer: L.geoJSON(data.lakes, { pane: "hydro", renderer: canvas("hydro"), interactive: false, style: { color: "#48655d", weight: 0.7, opacity: 0.85, fillColor: "#090e0d", fillOpacity: 1 } }) },
-      { minZoom: 3, layer: L.geoJSON(data.rivers, { pane: "hydro", renderer: canvas("hydro"), interactive: false, style: { color: "#48655d", weight: 0.65, opacity: 0.75 } }) },
-      { minZoom: 3, layer: L.geoJSON(data.regions, { pane: "regions", renderer: canvas("regions"), interactive: false, style: { color: "#60421f", weight: 0.55, opacity: 0.65, dashArray: "3 4" } }) },
-      { minZoom: 4, layer: L.geoJSON(data.urban, { pane: "urban", renderer: canvas("urban"), interactive: false, style: { color: "#754b1e", weight: 0.5, opacity: 0.65, fillColor: "#2d1b0b", fillOpacity: 0.85 } }) },
-      ...[3, 4, 5].map((rank) => ({ minZoom: rank, layer: L.geoJSON(data.roads, { pane: "roads", renderer: canvas("roads"), interactive: false, filter: (feature) => Number(feature.properties?.scalerank) === rank, style: roadStyle(rank) }) })),
-    ];
+    const builders = {
+      lakes: () => [{ minZoom: 2, layer: L.geoJSON(data, { pane: "hydro", renderer: canvas("hydro"), interactive: false, style: { color: "#48655d", weight: 0.7, opacity: 0.85, fillColor: "#090e0d", fillOpacity: 1 } }) }],
+      rivers: () => [{ minZoom: 3, layer: L.geoJSON(data, { pane: "hydro", renderer: canvas("hydro"), interactive: false, style: { color: "#48655d", weight: 0.65, opacity: 0.75 } }) }],
+      regions: () => [{ minZoom: 3, layer: L.geoJSON(data, { pane: "regions", renderer: canvas("regions"), interactive: false, style: { color: "#60421f", weight: 0.55, opacity: 0.65, dashArray: "3 4" } }) }],
+      urban: () => [{ minZoom: 4, layer: L.geoJSON(data, { pane: "urban", renderer: canvas("urban"), interactive: false, style: { color: "#754b1e", weight: 0.5, opacity: 0.65, fillColor: "#2d1b0b", fillOpacity: 0.85 } }) }],
+      roads3: () => [{ minZoom: 3, layer: L.geoJSON(data, { pane: "roads", renderer: canvas("roads"), interactive: false, style: roadStyle(3) }) }],
+      roads4: () => [{ minZoom: 4, layer: L.geoJSON(data, { pane: "roads", renderer: canvas("roads"), interactive: false, style: roadStyle(4) }) }],
+      roads5: () => [{ minZoom: 5, layer: L.geoJSON(data, { pane: "roads", renderer: canvas("roads"), interactive: false, style: roadStyle(5) }) }],
+    };
+    state.detailLayers.push(...builders[kind]());
   }
 
   function updateGeographyLabels() {
     const zoom = state.map.getZoom();
+    if (!state.localBasemap) void ensureDetailLayers(zoom);
     state.detailLayers.forEach(({ layer, minZoom }) => toggleLayer(layer, zoom >= minZoom));
     state.countryLabels.forEach(({ layer, minZoom }) => toggleLayer(layer, zoom >= minZoom && zoom <= 6));
     state.cityLabels.forEach(({ layer, minZoom }) => toggleLayer(layer, zoom >= minZoom));
+  }
+
+  function ensureDetailLayers(zoom) {
+    const details = [
+      ["lakes", 2, "data/lakes.geojson"],
+      ["rivers", 3, "data/rivers.geojson"],
+      ["regions", 3, "data/regions.geojson"],
+      ["roads3", 3, "data/roads-3.geojson"],
+      ["urban", 4, "data/urban.geojson"],
+      ["roads4", 4, "data/roads-4.geojson"],
+      ["roads5", 5, "data/roads-5.geojson"],
+    ];
+    const pending = details.filter(([, minZoom]) => zoom >= minZoom).map(([kind, , url]) => loadDetailLayer(kind, url));
+    return Promise.all(pending);
+  }
+
+  function loadDetailLayer(kind, url) {
+    if (state.detailLoads.has(kind)) return state.detailLoads.get(kind);
+    const loading = fetch(url)
+      .then((response) => {
+        if (!response.ok) throw new Error(`map detail ${kind}: HTTP ${response.status}`);
+        return response.json();
+      })
+      .then((data) => {
+        buildDetailLayers(kind, data);
+        const zoom = state.map.getZoom();
+        state.detailLayers.forEach(({ layer, minZoom }) => toggleLayer(layer, zoom >= minZoom));
+      })
+      .catch((error) => {
+        console.error(error);
+        state.detailLoads.delete(kind);
+      });
+    state.detailLoads.set(kind, loading);
+    return loading;
   }
 
   function cityMinimumZoom(rank) { return ({ 0: 2, 1: 3, 2: 4, 3: 5, 4: 6, 5: 7, 6: 7, 7: 8, 8: 8 })[rank] ?? 8; }

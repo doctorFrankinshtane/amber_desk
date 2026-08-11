@@ -308,8 +308,9 @@ func normalizeStatus(value string) string {
 
 func limited(value string, maximum int) string {
 	value = strings.TrimSpace(value)
-	if len(value) > maximum {
-		return value[:maximum]
+	runes := []rune(value)
+	if len(runes) > maximum {
+		return string(runes[:maximum])
 	}
 	return value
 }

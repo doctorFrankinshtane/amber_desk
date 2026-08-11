@@ -28,6 +28,9 @@ type Connector struct {
 	vaultPath    string
 	dossierDir   string
 	configured   bool
+	dossierMu    sync.Mutex
+	timelineMu   sync.Mutex
+	caseMu       sync.Mutex
 	attachmentMu sync.RWMutex
 }
 
@@ -94,6 +97,9 @@ func (c *Connector) ReadDossier(_ context.Context, ref connectors.DossierRef) (c
 }
 
 func (c *Connector) WriteDossier(_ context.Context, ref connectors.DossierRef, write connectors.DossierWrite) (connectors.Dossier, error) {
+	c.dossierMu.Lock()
+	defer c.dossierMu.Unlock()
+
 	path, relative, err := c.dossierPath(ref, true)
 	if err != nil {
 		return connectors.Dossier{}, err

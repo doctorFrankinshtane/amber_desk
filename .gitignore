@@ -5,3 +5,4 @@ server.err
 amberdesk.exe
 amberdesk-*.exe
 .tools/
+node_modules/

@@ -45,6 +45,7 @@ type Relation struct {
 
 type Event struct {
 	ID          string   `json:"id"`
+	OccurredAt  string   `json:"occurredAt,omitempty"`
 	Time        string   `json:"time"`
 	Date        string   `json:"date"`
 	Type        string   `json:"type"`

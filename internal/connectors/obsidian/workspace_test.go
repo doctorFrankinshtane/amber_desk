@@ -9,6 +9,7 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"sync"
 	"testing"
 
 	"amberdesk/internal/connectors/obsidian"
@@ -72,6 +73,44 @@ func TestTimelinePersistsAsMarkdownNotes(t *testing.T) {
 	data, err := os.ReadFile(path)
 	if err != nil || !strings.Contains(string(data), "kind: timeline_event") || !strings.Contains(string(data), "Confirmed") {
 		t.Fatalf("timeline markdown = %v %q", err, data)
+	}
+}
+
+func TestConcurrentTimelineNotesDoNotOverwriteEachOther(t *testing.T) {
+	connector, err := obsidian.New(obsidian.Config{VaultPath: t.TempDir()})
+	if err != nil {
+		t.Fatal(err)
+	}
+	ref := connectors.DossierRef{CaseID: "NS-04", CaseName: "NORTHSTAR"}
+	seed := connectors.TimelineEvent{ID: "EV-CONCURRENT", OccurredAt: "2026-08-10T10:00:00Z", Title: "Shared event", Status: "pending", Confidence: 80}
+	if _, err := connector.CreateTimelineEvent(context.Background(), ref, seed); err != nil {
+		t.Fatal(err)
+	}
+
+	start := make(chan struct{})
+	errors := make(chan error, 2)
+	var workers sync.WaitGroup
+	for _, text := range []string{"First independent source", "Second independent source"} {
+		workers.Add(1)
+		go func(text string) {
+			defer workers.Done()
+			<-start
+			_, noteErr := connector.AddTimelineNote(context.Background(), ref, seed.ID, connectors.TimelineNote{Text: text, CreatedAt: "2026-08-10T11:00:00Z"})
+			errors <- noteErr
+		}(text)
+	}
+	close(start)
+	workers.Wait()
+	close(errors)
+	for noteErr := range errors {
+		if noteErr != nil {
+			t.Fatal(noteErr)
+		}
+	}
+
+	events, err := connector.ListTimeline(context.Background(), ref)
+	if err != nil || len(events) != 1 || len(events[0].Notes) != 2 {
+		t.Fatalf("concurrent notes: %v %+v", err, events)
 	}
 }
 
