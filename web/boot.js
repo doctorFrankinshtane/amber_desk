@@ -7,7 +7,7 @@ window.AmberBoot = (() => {
   const root = document.documentElement;
   const startedAt = performance.now();
   const reduced = window.matchMedia("(prefers-reduced-motion: reduce)");
-  const slots = { core: 120, api: 360, vault: 600, case: 850, workspace: 1100 };
+  const slots = { core: 160, api: 620, vault: 1080, case: 1540, workspace: 2000 };
   const order = Object.keys(slots);
   const scheduled = [];
   let finishing = null;
@@ -41,7 +41,7 @@ window.AmberBoot = (() => {
     finishing = (async () => {
       await Promise.all(scheduled);
       if (reduced.matches) { reveal(); return; }
-      await delay(Math.max(0, 1320 - (performance.now() - startedAt)));
+      await delay(Math.max(0, 2320 - (performance.now() - startedAt)));
       root.classList.add("boot-revealing");
       await delay(180);
       reveal();
@@ -49,6 +49,6 @@ window.AmberBoot = (() => {
     return finishing;
   }
 
-  window.__amberBootFallback = window.setTimeout(reveal, 3000);
+  window.__amberBootFallback = window.setTimeout(reveal, 4500);
   return { report, finish };
 })();

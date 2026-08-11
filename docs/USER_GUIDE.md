@@ -236,7 +236,7 @@ On desktop, use the chevrons beside **INVESTIGATION CHRONOLOGY** to hide or rest
 
 Amber Desk uses brief Terminal Sequence transitions only for newly created records, generated results, dialogs, and system messages. Existing data, filters, search, and the command palette update immediately. The interface follows the operating system or browser `prefers-reduced-motion` setting and replaces movement with a short opacity signal.
 
-At startup, Terminal Decode progressively reports the interface core, local API, Obsidian vault, case index, and workspace state. The normal sequence lasts about 1.5 seconds and uses only same-origin requests to the local Amber Desk backend. These are runtime diagnostics, not a full `go test` run; full tests belong in development and CI so opening the interface cannot modify test storage or waste local resources. With `prefers-reduced-motion`, Amber Desk skips the intentional delay.
+At startup, Terminal Decode progressively reports the interface core, local API, Obsidian vault, case index, and workspace state. The normal sequence lasts about 2.5 seconds and uses only same-origin requests to the local Amber Desk backend. These are runtime diagnostics, not a full `go test` run; full tests belong in development and CI so opening the interface cannot modify test storage or waste local resources. With `prefers-reduced-motion`, Amber Desk skips the intentional delay.
 
 ## 13. Privacy boundaries
 
