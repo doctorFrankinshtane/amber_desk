@@ -49,9 +49,16 @@ async function init() {
     drawAvatar();
     updateClock();
     window.setInterval(updateClock, 1000);
-    await Promise.all([loadCase(), loadIntegrations()]);
-    await loadCases(true);
+    AmberBoot.report("core", "ok", "READY");
+    const [healthReady, caseReady] = await Promise.all([checkRuntimeHealth(), loadCase(), loadIntegrations()]);
+    AmberBoot.report("api", healthReady ? "ok" : "error", healthReady ? "OK" : "FAILED");
+    const integration = obsidianIntegration();
+    const vaultConnected = integration?.status.state === "connected";
+    AmberBoot.report("vault", vaultConnected ? "ok" : "warn", vaultConnected ? "LINKED" : "LOCAL");
+    const casesReady = await loadCases(true);
+    AmberBoot.report("case", caseReady && casesReady ? "ok" : "error", caseReady && casesReady ? "MOUNTED" : "FAILED");
     await window.AmberChecklist.init();
+    AmberBoot.report("workspace", healthReady && caseReady ? "ok" : "warn", healthReady && caseReady ? "OPEN" : "DEGRADED");
     window.setInterval(() => {
       if (!document.hidden && state.caseData && state.timelineBackend === "obsidian") loadTimeline(true);
     }, 15000);
@@ -62,11 +69,15 @@ async function init() {
 }
 
 function finishBoot() {
-  window.clearTimeout(window.__amberBootFallback);
-  window.requestAnimationFrame(() => {
-    document.documentElement.classList.remove("boot-pending");
-    document.documentElement.removeAttribute("aria-busy");
-  });
+  window.AmberBoot.finish();
+}
+
+async function checkRuntimeHealth() {
+  try {
+    const response = await fetch("/api/health", { headers: { Accept: "application/json" } });
+    const payload = await response.json();
+    return response.ok && payload.status === "ok";
+  } catch { return false; }
 }
 
 function cacheElements() {
@@ -206,10 +217,12 @@ async function loadCase() {
     renderCase();
     AmberMotion.reveal(document.querySelector(".identity-block"), { axis: "none", duration: 160 });
     commandMessage("WORKSPACE READY");
+    return true;
   } catch (error) {
     elements["api-state"].textContent = I18n.t("state.offline");
     commandMessage(`CONNECTION ERROR / ${error.message}`, true);
     elements["evidence-content"].innerHTML = '<div class="loading-block"><b>API UNAVAILABLE</b><span></span><small>START WITH: go run .</small></div>';
+    return false;
   }
 }
 
@@ -232,8 +245,10 @@ async function loadCases(silent = false) {
     state.cases = snapshot.cases || [];
     state.casesBackend = snapshot.backend || "memory";
     renderCasePicker();
+    return true;
   } catch (error) {
     if (!silent) commandMessage(error.message, true);
+    return false;
   }
 }
 

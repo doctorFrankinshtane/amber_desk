@@ -25,7 +25,34 @@
 [hidden] { display: none !important; }
 html, body { margin: 0; min-width: 320px; min-height: 100%; background: var(--base); }
 body { color: var(--ink); font-family: var(--font); font-size: 12px; overflow: hidden; }
-html.boot-pending body { visibility: hidden; }
+html.boot-pending body { visibility: visible; }
+html.boot-pending .app-shell,
+html.boot-pending body > dialog,
+html.boot-pending .crt-noise { visibility: hidden; }
+.boot-screen { display: none; }
+html.boot-pending .boot-screen { position: fixed; inset: 0; z-index: 2147483000; display: grid; place-items: center; background: var(--base); }
+.boot-console { width: min(460px, calc(100vw - 32px)); color: var(--ink); }
+.boot-console header { display: flex; justify-content: space-between; gap: 20px; padding-bottom: 12px; border-bottom: 1px solid var(--line); }
+.boot-console header strong { color: var(--ink-bright); font-size: 13px; }
+.boot-console header span { color: var(--ink-dim); font-size: 9px; text-align: right; }
+.boot-checks { padding: 10px 0; }
+.boot-check { display: flex; justify-content: space-between; gap: 24px; padding: 7px 0; color: var(--ink-dim); opacity: .28; transform: translateY(3px); transition: opacity var(--motion-enter) var(--ease-out), transform var(--motion-enter) var(--ease-out); }
+.boot-check span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.boot-check b { color: var(--ink-dim); font-size: 10px; }
+.boot-check[data-state="ok"], .boot-check[data-state="warn"], .boot-check[data-state="error"] { opacity: 1; transform: translateY(0); }
+.boot-check[data-state="ok"] b { color: var(--verified); }
+.boot-check[data-state="warn"] b { color: var(--pending); }
+.boot-check[data-state="error"] b { color: var(--alert); }
+.boot-console footer { display: grid; grid-template-columns: 1fr auto; align-items: center; gap: 16px; padding-top: 11px; border-top: 1px solid var(--line); color: var(--ink-dim); font-size: 9px; }
+.boot-progress { display: block; height: 4px; overflow: hidden; border: 1px solid var(--line); }
+.boot-progress i { display: block; width: 100%; height: 100%; background: var(--verified); transform: scaleX(0); transform-origin: left center; transition: transform var(--motion-standard) var(--ease-out); }
+.boot-cursor { margin-left: 2px; color: var(--ink-bright); animation: boot-cursor 500ms steps(1, end) infinite; }
+html.boot-pending.boot-revealing .app-shell,
+html.boot-pending.boot-revealing .crt-noise { visibility: visible; animation: boot-workspace-in 180ms var(--ease-out) both; }
+html.boot-pending.boot-revealing .boot-screen { animation: boot-console-out 120ms var(--ease-out) both; }
+@keyframes boot-workspace-in { from { opacity: .25; } to { opacity: 1; } }
+@keyframes boot-console-out { to { opacity: 0; transform: translateY(-3px); } }
+@keyframes boot-cursor { 50% { opacity: 0; } }
 
 * {
   scrollbar-color: var(--ink) #090604;

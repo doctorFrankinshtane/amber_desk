@@ -27,7 +27,7 @@ Extensible browser workspace for OSINT investigations. Amber Desk combines a den
 - Verification status and analyst notes
 - Keyboard command palette
 - Enlarged responsive desktop and mobile layouts with independently collapsible dossier and evidence panels
-- Lightweight Terminal Sequence feedback for new results and system messages, with reduced-motion support
+- 1.5-second Terminal Decode startup diagnostics and lightweight motion feedback, with reduced-motion support
 - Go backend with embedded frontend assets
 - Connector registry for external tools
 - Bidirectional Obsidian Markdown dossier synchronization
