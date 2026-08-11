@@ -25,7 +25,7 @@ window.AmberMotion = (() => {
     return animation;
   }
 
-  function reveal(element, { axis = "y", distance = 7, duration = 200, delay = 0 } = {}) {
+  function reveal(element, { axis = "y", distance = 3, duration = 160, delay = 0, fromOpacity = 0.72 } = {}) {
     if (!element) return null;
     if (reduced()) {
       return play(element, [{ opacity: 0.65 }, { opacity: 1 }], {
@@ -35,10 +35,13 @@ window.AmberMotion = (() => {
       });
     }
     const transform = axis === "x" ? `translateX(-${distance}px)` : `translateY(${distance}px)`;
-    return play(element, [{ opacity: 0, transform }, { opacity: 1, transform: "translate(0, 0)" }], {
+    const keyframes = axis === "none"
+      ? [{ opacity: fromOpacity }, { opacity: 1 }]
+      : [{ opacity: fromOpacity, transform }, { opacity: 1, transform: "translate(0, 0)" }];
+    return play(element, keyframes, {
       duration,
       delay,
-      easing: "steps(4, end)",
+      easing: "cubic-bezier(0.23, 1, 0.32, 1)",
     });
   }
 
@@ -49,9 +52,9 @@ window.AmberMotion = (() => {
   function pulse(element, tone = "ok") {
     if (!element) return null;
     element.dataset.motionTone = tone;
-    return play(element, [{ opacity: 0.35 }, { opacity: 1 }], {
-      duration: reduced() ? 100 : 160,
-      easing: reduced() ? "cubic-bezier(0.23, 1, 0.32, 1)" : "steps(3, end)",
+    return play(element, [{ opacity: 0.7 }, { opacity: 1 }], {
+      duration: reduced() ? 100 : 120,
+      easing: "cubic-bezier(0.23, 1, 0.32, 1)",
     });
   }
 
@@ -74,7 +77,7 @@ window.AmberMotion = (() => {
     }
 
     const run = { frame: 0, startedAt: performance.now(), label: element.getAttribute("aria-label") };
-    const duration = Math.min(280, Math.max(120, text.length * 10));
+    const duration = Math.min(260, Math.max(160, text.length * 14));
     typingRuns.set(element, run);
     element.setAttribute("aria-label", text);
     element.setAttribute("aria-busy", "true");
@@ -99,8 +102,8 @@ window.AmberMotion = (() => {
   function markGenerated(element) {
     if (!element) return;
     element.dataset.motionGenerated = "true";
-    reveal(element, { axis: "x", duration: 200 });
-    window.setTimeout(() => { delete element.dataset.motionGenerated; }, 240);
+    reveal(element, { axis: "x", duration: 160, fromOpacity: 0.35 });
+    window.setTimeout(() => { delete element.dataset.motionGenerated; }, 200);
   }
 
   return { reduced, reveal, revealList, pulse, typeText, markGenerated };

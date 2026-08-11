@@ -267,7 +267,7 @@ window.AmberMap = (() => {
       setMode("select");
       await refresh();
       selectMarker(saved);
-      if (created) AmberMotion.markGenerated(state.layers.get(saved.id)?.getElement());
+      if (created) AmberMotion.pulse(state.layers.get(saved.id)?.getElement());
     } catch (error) { setStatus(`ERROR / ${error.message}`, true); }
   }
 

@@ -62,7 +62,7 @@ window.AmberChecklist = (() => {
     const percent = tasks.length ? Math.round(resolved * 100 / tasks.length) : 0;
     const recommended = recommendedTask(tasks);
     el["checklist-backend"].textContent = (state.snapshot.backend || "memory").toUpperCase();
-    el["checklist-percent"].textContent = `${percent}%`; el["checklist-count"].textContent = `${resolved} / ${tasks.length}`; el["checklist-meter"].style.width = `${percent}%`;
+    el["checklist-percent"].textContent = `${percent}%`; el["checklist-count"].textContent = `${resolved} / ${tasks.length}`; el["checklist-meter"].style.transform = `scaleX(${percent / 100})`;
     el["checklist-next"].disabled = !recommended; el["checklist-next"].dataset.taskId = recommended?.id || ""; el["checklist-next-title"].textContent = recommended ? taskTitle(recommended) : I18n.t("checklist.complete");
     if (!state.openPhase) state.openPhase = recommended?.phaseId || state.snapshot.phases[0]?.id || "";
     el["checklist-task-phase"].replaceChildren(...state.snapshot.phases.map((phase) => option(phase.id, phaseTitle(phase))));

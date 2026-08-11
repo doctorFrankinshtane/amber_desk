@@ -192,7 +192,7 @@ async function loadCase() {
     elements["api-state"].textContent = I18n.t("state.synced");
     enableControls();
     renderCase();
-    AmberMotion.reveal(document.querySelector(".identity-block"), { axis: "x", duration: 200 });
+    AmberMotion.reveal(document.querySelector(".identity-block"), { axis: "none", duration: 160 });
     commandMessage("WORKSPACE READY");
   } catch (error) {
     elements["api-state"].textContent = I18n.t("state.offline");
@@ -284,7 +284,7 @@ async function applyActiveCase(selected) {
   state.selectedID = state.caseData.events[0]?.id || null;
   await loadCases(true);
   renderCase();
-  AmberMotion.reveal(document.querySelector(".timeline"), { axis: "x", duration: 200 });
+  AmberMotion.reveal(document.querySelector(".timeline"), { axis: "none", duration: 140, fromOpacity: 0.82 });
   refreshCaseModules();
 }
 
@@ -388,7 +388,7 @@ function switchWorkView(event) {
   if (state.workView === "map-view") window.AmberMap.init();
   if (state.workView === "relations-view") window.AmberRelations.init();
   if (state.workView === "catalog-view") window.AmberCatalog.init();
-  if (changed) AmberMotion.reveal(document.getElementById(state.workView), { axis: "x", duration: 160 });
+  if (changed) AmberMotion.reveal(document.getElementById(state.workView), { axis: "none", duration: 120, fromOpacity: 0.82 });
 }
 
 function syncWorkspaceTitle() {
@@ -551,7 +551,6 @@ function togglePanel(name) {
   state.panels[key] = !state.panels[key];
   localStorage.setItem("amberdesk.panels", JSON.stringify(state.panels));
   applyPanelPreferences();
-  if (!state.panels[key]) AmberMotion.reveal(document.getElementById(`${name}-panel`), { axis: "x", duration: 160 });
   window.dispatchEvent(new Event("resize"));
 }
 
@@ -590,7 +589,7 @@ function renderCase() {
   elements["subject-name"].textContent = subject.displayName;
   elements["subject-risk"].textContent = I18n.t(`risk.${subject.risk}`);
   elements.confidence.textContent = `${subject.confidence}%`;
-  elements["confidence-meter"].style.width = `${subject.confidence}%`;
+  elements["confidence-meter"].style.transform = `scaleX(${subject.confidence / 100})`;
   elements["last-seen"].textContent = subject.lastSeen;
   elements.location.textContent = subject.location;
   elements.aliases.replaceChildren(...subject.aliases.map((alias) => node("li", {}, alias)));
@@ -666,7 +665,7 @@ function renderEvidence() {
   fragment.querySelector(".meta-source").textContent = event.sourceURL;
   fragment.querySelector(".meta-time").textContent = `${event.date} / ${event.time}`;
   fragment.querySelector(".meta-confidence").textContent = `${event.confidence}%`;
-  fragment.querySelector(".evidence-meta .meter i").style.width = `${event.confidence}%`;
+  fragment.querySelector(".evidence-meta .meter i").style.transform = `scaleX(${event.confidence / 100})`;
   fragment.querySelector(".meta-fingerprint").textContent = event.fingerprint;
   const indicators = event.indicators || [];
   const eventNotes = event.notes || [];
