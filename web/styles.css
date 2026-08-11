@@ -25,6 +25,7 @@
 [hidden] { display: none !important; }
 html, body { margin: 0; min-width: 320px; min-height: 100%; background: var(--base); }
 body { color: var(--ink); font-family: var(--font); font-size: 12px; overflow: hidden; }
+html.boot-pending body { visibility: hidden; }
 
 * {
   scrollbar-color: var(--ink) #090604;

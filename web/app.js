@@ -36,25 +36,37 @@ const elements = {};
 document.addEventListener("DOMContentLoaded", init);
 
 async function init() {
-  cacheElements();
-  const parameters = new URLSearchParams(window.location.search);
-  const requestedLanguage = parameters.get("lang");
-  I18n.setLanguage(["en", "ru"].includes(requestedLanguage) ? requestedLanguage : I18n.detect());
-  elements["language-select"].value = I18n.language;
-  bindEvents();
-  restorePanelPreferences();
-  const requestedView = parameters.get("view");
-  if (["dossier", "timeline", "evidence"].includes(requestedView)) setMobileView(requestedView);
-  drawAvatar();
-  updateClock();
-  window.setInterval(updateClock, 1000);
-  await Promise.all([loadCase(), loadIntegrations()]);
-  await loadCases(true);
-  await window.AmberChecklist.init();
-  window.setInterval(() => {
-    if (!document.hidden && state.caseData && state.timelineBackend === "obsidian") loadTimeline(true);
-  }, 15000);
-  if (parameters.get("connector") === "obsidian") await openDossierEditor();
+  try {
+    cacheElements();
+    const parameters = new URLSearchParams(window.location.search);
+    const requestedLanguage = parameters.get("lang");
+    I18n.setLanguage(["en", "ru"].includes(requestedLanguage) ? requestedLanguage : I18n.detect());
+    elements["language-select"].value = I18n.language;
+    bindEvents();
+    restorePanelPreferences();
+    const requestedView = parameters.get("view");
+    if (["dossier", "timeline", "evidence"].includes(requestedView)) setMobileView(requestedView);
+    drawAvatar();
+    updateClock();
+    window.setInterval(updateClock, 1000);
+    await Promise.all([loadCase(), loadIntegrations()]);
+    await loadCases(true);
+    await window.AmberChecklist.init();
+    window.setInterval(() => {
+      if (!document.hidden && state.caseData && state.timelineBackend === "obsidian") loadTimeline(true);
+    }, 15000);
+    if (parameters.get("connector") === "obsidian") await openDossierEditor();
+  } finally {
+    finishBoot();
+  }
+}
+
+function finishBoot() {
+  window.clearTimeout(window.__amberBootFallback);
+  window.requestAnimationFrame(() => {
+    document.documentElement.classList.remove("boot-pending");
+    document.documentElement.removeAttribute("aria-busy");
+  });
 }
 
 function cacheElements() {
