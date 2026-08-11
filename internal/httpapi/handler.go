@@ -14,6 +14,7 @@ import (
 	"net/http"
 	"net/url"
 	"path"
+	"strconv"
 	"strings"
 	"sync"
 	"time"
@@ -68,6 +69,7 @@ func NewWithConfig(store *casefile.Store, registry *connectors.Registry, webFile
 	h := &Handler{store: store, connectors: registry, web: staticHandler(webFiles), mapTiles: config.MapTiles.normalized(), catalog: config.Catalog, attachments: make(map[string]map[string]memoryAttachment), checklists: make(map[string]connectors.ChecklistSnapshot), sherlock: sherlock.NewManager(toolContext, config.SherlockRunner), allowRemoteTools: config.AllowRemoteToolRuns, allowRemote: config.AllowRemoteAccess}
 	mux := http.NewServeMux()
 	mux.HandleFunc("GET /api/health", h.health)
+	mux.HandleFunc("GET /api/config", h.getRuntimeConfig)
 	mux.HandleFunc("GET /api/case", h.getCase)
 	mux.HandleFunc("POST /api/case", h.createCase)
 	mux.HandleFunc("GET /api/cases", h.listCases)
@@ -241,11 +243,16 @@ func (h *Handler) addNote(w http.ResponseWriter, r *http.Request) {
 	var input struct {
 		Text string `json:"text"`
 	}
-	if err := decodeJSON(r, &input); err != nil || strings.TrimSpace(input.Text) == "" {
-		writeError(w, http.StatusBadRequest, "note text is required")
+	if err := decodeJSON(r, &input); err != nil {
+		writeError(w, http.StatusBadRequest, "invalid note")
 		return
 	}
-	noteText := strings.TrimSpace(input.Text)
+	normalized, err := connectors.NormalizeTimelineNote(connectors.TimelineNote{Text: input.Text})
+	if err != nil {
+		writeError(w, http.StatusBadRequest, err.Error())
+		return
+	}
+	noteText := normalized.Text
 	if connector, ok := h.activeTimelineConnector(r.Context()); ok {
 		note := connectors.TimelineNote{Text: noteText, CreatedAt: time.Now().UTC().Format(time.RFC3339)}
 		event, err := connector.AddTimelineNote(r.Context(), h.dossierRef(), r.PathValue("id"), note)
@@ -360,14 +367,21 @@ func writeConnectorError(w http.ResponseWriter, err error) {
 		return
 	}
 	if errors.Is(err, connectors.ErrAttachmentLarge) {
-		writeError(w, http.StatusRequestEntityTooLarge, err.Error())
+		writeError(w, http.StatusRequestEntityTooLarge, "attachment exceeds "+formatByteLimit(connectors.MaxRelationshipAttachmentSize))
 		return
 	}
 	if errors.Is(err, connectors.ErrAttachmentLimit) {
-		writeError(w, http.StatusConflict, err.Error())
+		writeError(w, http.StatusConflict, "attachment limit reached (maximum "+strconv.Itoa(connectors.MaxRelationshipAttachmentsPerNode)+" per card)")
 		return
 	}
 	writeError(w, http.StatusBadGateway, err.Error())
+}
+
+func formatByteLimit(value int64) string {
+	if value%(1<<20) == 0 {
+		return strconv.FormatInt(value/(1<<20), 10) + " MiB"
+	}
+	return strconv.FormatInt(value, 10) + " bytes"
 }
 
 func securityHeaders(next http.Handler) http.Handler {

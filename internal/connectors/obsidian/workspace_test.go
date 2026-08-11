@@ -76,6 +76,87 @@ func TestTimelinePersistsAsMarkdownNotes(t *testing.T) {
 	}
 }
 
+func TestTimelineRejectsOversizedText(t *testing.T) {
+	connector, err := obsidian.New(obsidian.Config{VaultPath: t.TempDir()})
+	if err != nil {
+		t.Fatal(err)
+	}
+	ref := connectors.DossierRef{CaseID: "CASE-LIMITS01", CaseName: "LIMITS"}
+	_, err = connector.CreateTimelineEvent(context.Background(), ref, connectors.TimelineEvent{Title: strings.Repeat("я", connectors.MaxTimelineTitleRunes+1), Confidence: 50})
+	if err == nil || !strings.Contains(err.Error(), "title exceeds") {
+		t.Fatalf("oversized title error = %v", err)
+	}
+}
+
+func TestTimelineIgnoresUnsupportedDocumentSchema(t *testing.T) {
+	vault := t.TempDir()
+	connector, err := obsidian.New(obsidian.Config{VaultPath: vault})
+	if err != nil {
+		t.Fatal(err)
+	}
+	ref := connectors.DossierRef{CaseID: "CASE-SCHEMA01", CaseName: "SCHEMA"}
+	created, err := connector.CreateTimelineEvent(context.Background(), ref, connectors.TimelineEvent{ID: "EV-SCHEMA", Title: "Versioned note", Confidence: 50})
+	if err != nil {
+		t.Fatal(err)
+	}
+	path := filepath.Join(vault, "Amber Desk", "Cases", ref.CaseID, "Timeline", created.ID+".md")
+	data, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	data = []byte(strings.Replace(string(data), "version: 1", "version: 2", 1))
+	if err := os.WriteFile(path, data, 0o600); err != nil {
+		t.Fatal(err)
+	}
+	events, err := connector.ListTimeline(context.Background(), ref)
+	if err != nil || len(events) != 0 {
+		t.Fatalf("unsupported schema must be ignored: %v %+v", err, events)
+	}
+}
+
+func TestCustomDossierDirectoryUsesOneWorkspaceRoot(t *testing.T) {
+	vault := t.TempDir()
+	connector, err := obsidian.New(obsidian.Config{VaultPath: vault, DossierDir: filepath.Join("Investigations", "Case Notes")})
+	if err != nil {
+		t.Fatal(err)
+	}
+	ctx := context.Background()
+	const caseID = "CASE-ABCD1234"
+	ref := connectors.DossierRef{CaseID: caseID, CaseName: "CUSTOM PATH", SubjectName: "SUBJECT"}
+	if _, err := connector.WriteDossier(ctx, ref, connectors.DossierWrite{Content: "# Custom dossier\n"}); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := connector.CreateTimelineEvent(ctx, ref, connectors.TimelineEvent{ID: "EV-CUSTOM", Title: "Custom root event", Confidence: 50}); err != nil {
+		t.Fatal(err)
+	}
+	summary := connectors.CaseSummary{ID: caseID, Name: ref.CaseName, Subject: ref.SubjectName, Status: "active", UpdatedAt: "2026-08-11T10:00:00Z"}
+	if err := connector.WriteCase(ctx, summary, []byte(`{"id":"CASE-ABCD1234"}`)); err != nil {
+		t.Fatal(err)
+	}
+	if err := connector.SetActiveCase(ctx, caseID); err != nil {
+		t.Fatal(err)
+	}
+
+	for _, path := range []string{
+		filepath.Join(vault, "Investigations", "Case Notes", caseID+".md"),
+		filepath.Join(vault, "Investigations", "Cases", caseID, "Timeline", "EV-CUSTOM.md"),
+	} {
+		if _, err := os.Stat(path); err != nil {
+			t.Fatalf("expected custom workspace file %s: %v", path, err)
+		}
+	}
+	if _, err := connector.TrashCase(ctx, caseID); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := os.Stat(filepath.Join(vault, "Investigations", "Case Notes", caseID+".md")); !errors.Is(err, os.ErrNotExist) {
+		t.Fatalf("dossier was not moved to trash: %v", err)
+	}
+	matches, err := filepath.Glob(filepath.Join(vault, "Investigations", ".trash", caseID+"-*", "Dossiers", caseID+".md"))
+	if err != nil || len(matches) != 1 {
+		t.Fatalf("trashed custom dossier: %v %v", err, matches)
+	}
+}
+
 func TestConcurrentTimelineNotesDoNotOverwriteEachOther(t *testing.T) {
 	connector, err := obsidian.New(obsidian.Config{VaultPath: t.TempDir()})
 	if err != nil {

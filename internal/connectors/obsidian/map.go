@@ -141,7 +141,7 @@ func (c *Connector) CreateMapRoute(ctx context.Context, ref connectors.DossierRe
 	if _, err := os.Stat(path); err == nil {
 		return connectors.MapRoute{}, connectors.ErrConflict
 	}
-	document := routeDocument{AmberDesk: documentHeader{Version: 1, Kind: "map_route", CaseID: ref.CaseID}, MapRoute: route}
+	document := routeDocument{AmberDesk: newDocumentHeader(documentKindMapRoute, ref.CaseID), MapRoute: route}
 	data, err := marshalNote(document, "# "+route.Label+"\n\nMovement route from [["+route.FromMarkerID+"]] to [["+route.ToMarkerID+"]].")
 	if err != nil {
 		return connectors.MapRoute{}, err
@@ -176,7 +176,7 @@ func (c *Connector) listMarkers(ref connectors.DossierRef) ([]connectors.MapMark
 		if err := unmarshalNote(data, &document); err != nil {
 			return nil, err
 		}
-		if document.AmberDesk.Kind == "map_marker" && document.AmberDesk.CaseID == ref.CaseID {
+		if document.AmberDesk.valid(documentKindMapMarker, ref.CaseID) {
 			markers = append(markers, document.MapMarker)
 		}
 	}
@@ -195,7 +195,7 @@ func (c *Connector) listRoutes(ref connectors.DossierRef) ([]connectors.MapRoute
 		if err := unmarshalNote(data, &document); err != nil {
 			return nil, err
 		}
-		if document.AmberDesk.Kind == "map_route" && document.AmberDesk.CaseID == ref.CaseID {
+		if document.AmberDesk.valid(documentKindMapRoute, ref.CaseID) {
 			routes = append(routes, document.MapRoute)
 		}
 	}
@@ -233,7 +233,7 @@ func (c *Connector) writeMarker(ref connectors.DossierRef, marker connectors.Map
 	if err != nil {
 		return err
 	}
-	document := markerDocument{AmberDesk: documentHeader{Version: 1, Kind: "map_marker", CaseID: ref.CaseID}, MapMarker: marker}
+	document := markerDocument{AmberDesk: newDocumentHeader(documentKindMapMarker, ref.CaseID), MapMarker: marker}
 	body := fmt.Sprintf("# %s\n\n%s\n\nCoordinates: `%.6f, %.6f`", marker.Label, marker.Description, marker.Latitude, marker.Longitude)
 	data, err := marshalNote(document, body)
 	if err != nil {

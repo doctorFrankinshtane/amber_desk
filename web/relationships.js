@@ -1,7 +1,7 @@
 "use strict";
 
 window.AmberRelations = (() => {
-  const state = { initialized: false, loaded: false, snapshot: { nodes: [], edges: [], backend: "memory" }, cy: null, mode: "select", linkSource: null, draftPosition: null, attachments: new Map(), attachmentLayer: null, coverLayer: null, selectedNodeID: "", sherlock: { status: null, scan: null, source: null, selected: new Set(), stream: null } };
+  const state = { initialized: false, loaded: false, snapshot: { nodes: [], edges: [], backend: AmberAPI.getConfig().connectors.memoryBackend }, cy: null, mode: "select", linkSource: null, draftPosition: null, attachments: new Map(), attachmentLayer: null, coverLayer: null, selectedNodeID: "", sherlock: { status: null, scan: null, source: null, selected: new Set(), stream: null } };
   const el = {};
 
   async function init() {
@@ -12,7 +12,7 @@ window.AmberRelations = (() => {
 
   async function refresh() {
     state.loaded = false;
-    state.snapshot = { nodes: [], edges: [], backend: "memory" };
+    state.snapshot = { nodes: [], edges: [], backend: AmberAPI.getConfig().connectors.memoryBackend };
     state.linkSource = null;
     if (state.initialized) await load();
   }
@@ -50,8 +50,7 @@ window.AmberRelations = (() => {
 
   async function load() {
     try {
-      const response = await fetch("/api/relationships", { headers: { Accept: "application/json" } });
-      const payload = await response.json(); if (!response.ok) throw new Error(payload.error || `API ${response.status}`);
+      const payload = await AmberAPI.requestJSON("/api/relationships");
       state.snapshot = payload; state.loaded = true; build();
     } catch (error) { el["relations-empty"].hidden = false; el["relations-empty"].querySelector("p").textContent = `BOARD ERROR / ${error.message}`; }
   }
@@ -199,8 +198,12 @@ window.AmberRelations = (() => {
   async function uploadAttachments(event) {
     const nodeID = el["relation-node-id"].value, files = [...event.target.files]; event.target.value = "";
     if (!nodeID || !files.length) return;
-    const caseResponse = await fetch("/api/case", { headers: { Accept: "application/json" } }), caseData = await caseResponse.json();
-    if (!caseResponse.ok) { boardMessage(`BOARD ERROR / ${caseData.error || caseResponse.status}`); return; }
+    const config = AmberAPI.getConfig().attachments;
+    const existing = state.attachments.get(nodeID)?.length || 0;
+    if (files.some((file) => file.size <= 0 || file.size > config.maxBytes)) { boardMessage(`BOARD ERROR / FILE EXCEEDS ${formatBytes(config.maxBytes)}`); return; }
+    if (existing + files.length > config.maxPerNode) { boardMessage(`BOARD ERROR / MAXIMUM ${config.maxPerNode} FILES PER CARD`); return; }
+    const caseData = await api("/api/case");
+    if (!caseData) return;
     el["relation-attachment-add"].disabled = true;
     for (let index = 0; index < files.length; index += 1) {
       AmberMotion.typeText(el["relation-attachment-status"], `UPLOADING ${index + 1} / ${files.length}`);
@@ -215,21 +218,20 @@ window.AmberRelations = (() => {
 
   async function removeAttachment(nodeID, item) {
     if (!window.confirm(`${I18n.t("relations.removeAttachmentConfirm")}\n\n${item.filename}`)) return;
-    const caseResponse = await fetch("/api/case", { headers: { Accept: "application/json" } }), caseData = await caseResponse.json();
+    const caseData = await api("/api/case"); if (!caseData) return;
     const removed = await api(`/api/relationships/nodes/${encodeURIComponent(nodeID)}/attachments/${encodeURIComponent(item.id)}`, { method: "DELETE", body: JSON.stringify({ caseId: caseData.id }) }, true);
     if (removed) { await syncRelationshipNode(nodeID); await loadAttachments(nodeID); notifyRelationshipChange(nodeID); }
   }
 
   async function setCover(nodeID, item) {
-    const caseResponse = await fetch("/api/case", { headers: { Accept: "application/json" } }), caseData = await caseResponse.json();
+    const caseData = await api("/api/case"); if (!caseData) return;
     const updated = await api(`/api/relationships/nodes/${encodeURIComponent(nodeID)}/cover`, { method: "PUT", body: JSON.stringify({ caseId: caseData.id, attachmentId: item.id }) });
     if (!updated) return;
     replaceRelationshipNode(updated); renderCoverCards(); renderAttachmentList(nodeID, state.attachments.get(nodeID) || []); notifyRelationshipChange(nodeID);
   }
 
   async function syncRelationshipNode(nodeID) {
-    const response = await fetch("/api/relationships", { headers: { Accept: "application/json" } }), snapshot = await response.json();
-    if (!response.ok) { boardMessage(`BOARD ERROR / ${snapshot.error || response.status}`); return; }
+    const snapshot = await api("/api/relationships"); if (!snapshot) return;
     const node = snapshot.nodes.find((entry) => entry.id === nodeID); if (node) replaceRelationshipNode(node);
     renderCoverCards();
   }
@@ -327,8 +329,7 @@ window.AmberRelations = (() => {
     if (!state.sherlock.status) {
       el["sherlock-runtime"].textContent = "CHECKING RUNTIME";
       try {
-        const response = await fetch("/api/tools/sherlock/status", { headers: { Accept: "application/json" } });
-        state.sherlock.status = await response.json();
+        state.sherlock.status = await AmberAPI.requestJSON("/api/tools/sherlock/status");
       } catch { state.sherlock.status = { ready: false, message: "Sherlock status is unavailable" }; }
     }
     el["sherlock-runtime"].textContent = state.sherlock.status.ready ? `READY / ${state.sherlock.status.version}` : "UNAVAILABLE";
@@ -440,14 +441,13 @@ window.AmberRelations = (() => {
   }
 
   async function fetchJSON(url, options = {}) {
-    const response = await fetch(url, { ...options, headers: { Accept: "application/json", "Content-Type": "application/json", ...(options.headers || {}) } });
-    const payload = await response.json(); if (!response.ok) throw new Error(payload.error || `API ${response.status}`); return payload;
+    return AmberAPI.requestJSON(url, options);
   }
 
   function usernameFromNode(node) { const value = (node.title || "").replace(/^@/, "").split(/\s|\//)[0]; return /^[A-Za-z0-9._-]{1,100}$/.test(value) ? value : ""; }
 
   async function api(url, options, noContent = false) {
-    try { const headers = { Accept: "application/json" }; if (!(options?.body instanceof FormData)) headers["Content-Type"] = "application/json"; const response = await fetch(url, { ...options, headers }); if (!response.ok) { const payload = await response.json(); throw new Error(payload.error || `API ${response.status}`); } return noContent ? true : response.json(); }
+    try { const payload = await AmberAPI.requestJSON(url, options); return noContent ? true : payload; }
     catch (error) { boardMessage(`BOARD ERROR / ${error.message}`); return null; }
   }
 
@@ -455,7 +455,7 @@ window.AmberRelations = (() => {
   function csv(value) { return value.split(",").map((item) => item.trim()).filter(Boolean); }
   function clamp(value) { return Math.max(0, Math.min(1, value)); }
   function formatBytes(value) { if (value < 1024) return `${value} B`; if (value < 1048576) return `${(value / 1024).toFixed(1)} KiB`; return `${(value / 1048576).toFixed(1)} MiB`; }
-  function isImageAttachment(item) { return ["image/jpeg", "image/png", "image/webp", "image/gif"].includes(item.mediaType); }
+  function isImageAttachment(item) { return AmberAPI.isImageMediaType(item.mediaType); }
   function attachmentURL(nodeID, attachmentID, inline = false) { return `/api/relationships/nodes/${encodeURIComponent(nodeID)}/attachments/${encodeURIComponent(attachmentID)}${inline ? "?inline=1" : ""}`; }
   document.addEventListener("amber:case-switched", refresh);
   return { init, refresh, openSherlock: openSherlockConsole, get loaded() { return state.loaded; } };

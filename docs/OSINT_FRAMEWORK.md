@@ -4,7 +4,7 @@
 
 Implemented as a bundled, immutable catalog snapshot behind `pkg/catalog.Provider` and `GET /api/catalog`. The backend normalizes the nested source tree, generates stable identifiers, limits input size and depth, and rejects URLs outside HTTP(S). The browser renders upstream strings as text, filters locally, and can record a selected source in the active timeline. Runtime catalog loading does not contact OSINT Framework or any listed service.
 
-Current snapshot: upstream commit `a744e613d7ded0aaa854896feb2a1069de34d2f8`, imported 2026-08-10. One invalid `javascript:` entry is excluded during normalization.
+The authoritative snapshot provenance is stored in [`web/data/osint-framework.meta.json`](../web/data/osint-framework.meta.json). One invalid `javascript:` entry is excluded during normalization.
 
 ## Summary
 

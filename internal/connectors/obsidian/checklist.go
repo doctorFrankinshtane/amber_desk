@@ -34,7 +34,7 @@ func (c *Connector) ReadChecklist(_ context.Context, ref connectors.DossierRef) 
 	if err := unmarshalNote(data, &document); err != nil {
 		return connectors.ChecklistSnapshot{}, fmt.Errorf("parse checklist: %w", err)
 	}
-	if document.AmberDesk.Kind != "investigation_checklist" || document.AmberDesk.CaseID != ref.CaseID {
+	if !document.AmberDesk.valid(documentKindChecklist, ref.CaseID) {
 		return connectors.ChecklistSnapshot{}, connectors.ErrEntityAbsent
 	}
 	return connectors.ChecklistSnapshot{Version: document.Version, RecommendedTaskID: document.RecommendedTaskID, Phases: document.Phases, Backend: ID}, nil
@@ -45,7 +45,7 @@ func (c *Connector) WriteChecklist(_ context.Context, ref connectors.DossierRef,
 	if err != nil {
 		return connectors.ChecklistSnapshot{}, err
 	}
-	document := checklistDocument{AmberDesk: documentHeader{Version: 1, Kind: "investigation_checklist", CaseID: ref.CaseID}, Version: snapshot.Version, RecommendedTaskID: snapshot.RecommendedTaskID, Phases: snapshot.Phases}
+	document := checklistDocument{AmberDesk: newDocumentHeader(documentKindChecklist, ref.CaseID), Version: snapshot.Version, RecommendedTaskID: snapshot.RecommendedTaskID, Phases: snapshot.Phases}
 	data, err := marshalNote(document, checklistBody(snapshot))
 	if err != nil {
 		return connectors.ChecklistSnapshot{}, err

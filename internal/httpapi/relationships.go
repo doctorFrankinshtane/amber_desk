@@ -46,7 +46,7 @@ func (h *Handler) listRelationships(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	h.relationMu.Lock()
-	snapshot := connectors.RelationshipSnapshot{Nodes: cloneRelationshipNodes(h.nodes), Edges: cloneRelationshipEdges(h.edges), Backend: "memory"}
+	snapshot := connectors.RelationshipSnapshot{Nodes: cloneRelationshipNodes(h.nodes), Edges: cloneRelationshipEdges(h.edges), Backend: connectors.BackendMemory}
 	h.relationMu.Unlock()
 	h.attachmentMu.Lock()
 	for i := range snapshot.Nodes {
@@ -197,7 +197,7 @@ func (h *Handler) listRelationshipAttachments(w http.ResponseWriter, r *http.Req
 func (h *Handler) createRelationshipAttachment(w http.ResponseWriter, r *http.Request) {
 	r.Body = http.MaxBytesReader(w, r.Body, connectors.MaxRelationshipAttachmentSize+(1<<20))
 	if err := r.ParseMultipartForm(connectors.MaxRelationshipAttachmentSize); err != nil {
-		writeError(w, http.StatusRequestEntityTooLarge, "attachment exceeds 10 MiB")
+		writeError(w, http.StatusRequestEntityTooLarge, "attachment exceeds "+formatByteLimit(connectors.MaxRelationshipAttachmentSize))
 		return
 	}
 	ref := h.dossierRef()
@@ -484,12 +484,7 @@ func (h *Handler) relationshipAttachment(ctx context.Context, nodeID, attachment
 }
 
 func isRelationshipCoverImage(mediaType string) bool {
-	switch mediaType {
-	case "image/jpeg", "image/png", "image/webp", "image/gif":
-		return true
-	default:
-		return false
-	}
+	return connectors.IsRelationshipImageMediaType(mediaType)
 }
 
 func validRelationshipImage(content []byte, mediaType string) bool {
@@ -521,7 +516,7 @@ func (h *Handler) activeAttachmentConnector(ctx context.Context) (connectors.Rel
 	if !ok {
 		return nil, false
 	}
-	if !hasCapability(connector.Metadata().Capabilities, "relationships.attachments.read") {
+	if !connectors.HasCapability(connector.Metadata().Capabilities, connectors.CapabilityRelationshipAttachmentsRead) {
 		return nil, false
 	}
 	attachments, supported := connector.(connectors.RelationshipAttachmentConnector)
@@ -534,7 +529,7 @@ func (h *Handler) requireRelationshipNode(ctx context.Context, nodeID string) er
 }
 
 func validateRelationshipAttachmentFilename(name string) error {
-	if name == "" || name == "." || name == ".." || filepath.Base(name) != name || strings.ContainsAny(name, `/\\`) || utf8.RuneCountInString(name) > 180 {
+	if name == "" || name == "." || name == ".." || filepath.Base(name) != name || strings.ContainsAny(name, `/\\`) || utf8.RuneCountInString(name) > connectors.MaxRelationshipAttachmentFilenameRunes {
 		return connectors.ErrInvalidFilename
 	}
 	for _, char := range name {
@@ -631,7 +626,7 @@ func (h *Handler) deleteRelationshipEdge(w http.ResponseWriter, r *http.Request)
 
 func (h *Handler) activeRelationshipConnector(ctx context.Context) (connectors.RelationshipConnector, bool) {
 	for _, info := range h.connectors.List(ctx) {
-		if info.Status.State != "connected" || !hasCapability(info.Metadata.Capabilities, "relationships.read") {
+		if info.Status.State != connectors.StateConnected || !connectors.HasCapability(info.Metadata.Capabilities, connectors.CapabilityRelationshipsRead) {
 			continue
 		}
 		connector, err := h.connectors.Get(info.Metadata.ID)
@@ -649,7 +644,7 @@ func (h *Handler) relationshipSnapshot(ctx context.Context) (connectors.Relation
 	}
 	h.relationMu.Lock()
 	defer h.relationMu.Unlock()
-	return connectors.RelationshipSnapshot{Nodes: cloneRelationshipNodes(h.nodes), Edges: cloneRelationshipEdges(h.edges), Backend: "memory"}, nil
+	return connectors.RelationshipSnapshot{Nodes: cloneRelationshipNodes(h.nodes), Edges: cloneRelationshipEdges(h.edges), Backend: connectors.BackendMemory}, nil
 }
 
 func normalizeRelationshipNode(node *connectors.RelationshipNode) error {

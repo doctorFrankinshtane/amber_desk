@@ -17,6 +17,8 @@ import (
 
 var caseIDPattern = regexp.MustCompile(`^CASE-[A-Z0-9]{8}$`)
 
+const caseIndexSchemaVersion = 1
+
 type caseIndex struct {
 	Version int                      `json:"version"`
 	Cases   []connectors.CaseSummary `json:"cases"`
@@ -187,8 +189,12 @@ func (c *Connector) TrashCase(_ context.Context, caseID string) (string, error) 
 		}
 	}
 
-	amberRoot := filepath.Join(c.vaultPath, filepath.Dir(c.dossierDir))
-	trashRoot := filepath.Join(amberRoot, ".trash", caseID+"-"+time.Now().UTC().Format("20060102T150405.000000000Z"))
+	trashRoot := filepath.Join(c.workspaceRoot(), ".trash", caseID+"-"+time.Now().UTC().Format("20060102T150405.000000000Z"))
+	for _, root := range []string{c.workspaceRoot(), c.casesRoot(), c.dossierRoot(), c.stateRoot()} {
+		if err := ensureInside(c.vaultPath, root); err != nil {
+			return "", err
+		}
+	}
 	type move struct{ source, target string }
 	moves := []move{}
 	appendMatches := func(directory, destination string) error {
@@ -208,10 +214,10 @@ func (c *Connector) TrashCase(_ context.Context, caseID string) (string, error) 
 		}
 		return nil
 	}
-	if err := appendMatches(filepath.Join(amberRoot, "Cases"), "Cases"); err != nil {
+	if err := appendMatches(c.casesRoot(), "Cases"); err != nil {
 		return "", fmt.Errorf("inspect case files: %w", err)
 	}
-	if err := appendMatches(filepath.Join(amberRoot, "Dossiers"), "Dossiers"); err != nil {
+	if err := appendMatches(c.dossierRoot(), "Dossiers"); err != nil {
 		return "", fmt.Errorf("inspect dossier files: %w", err)
 	}
 	snapshot, err := c.caseSnapshotPath(caseID, false)
@@ -271,7 +277,7 @@ func (c *Connector) loadCaseIndex() (caseIndex, error) {
 		return caseIndex{}, fmt.Errorf("read case index: %w", err)
 	}
 	var index caseIndex
-	if err := json.Unmarshal(data, &index); err != nil || index.Version != 1 {
+	if err := json.Unmarshal(data, &index); err != nil || index.Version != caseIndexSchemaVersion {
 		return caseIndex{}, errors.New("case index is invalid")
 	}
 	if index.Cases == nil {
@@ -281,7 +287,7 @@ func (c *Connector) loadCaseIndex() (caseIndex, error) {
 }
 
 func (c *Connector) migrateLegacyCaseState() (caseIndex, error) {
-	index := caseIndex{Version: 1, Cases: []connectors.CaseSummary{}}
+	index := caseIndex{Version: caseIndexSchemaVersion, Cases: []connectors.CaseSummary{}}
 	root, err := c.caseStateRoot(true)
 	if err != nil {
 		return index, err
@@ -404,7 +410,7 @@ func (c *Connector) caseStateRoot(create bool) (string, error) {
 	if info, err := os.Stat(c.vaultPath); err != nil || !info.IsDir() {
 		return "", errors.New("obsidian vault is unavailable")
 	}
-	root := filepath.Join(c.vaultPath, filepath.Dir(c.dossierDir), ".state")
+	root := c.stateRoot()
 	if create {
 		if err := os.MkdirAll(root, 0o755); err != nil {
 			return "", fmt.Errorf("create case state root: %w", err)

@@ -126,7 +126,7 @@ func normalizeCase(input casefile.Case) (casefile.Case, error) {
 func (h *Handler) syncCreatedCase(ctx context.Context, caseData casefile.Case, nodes []connectors.RelationshipNode, edges []connectors.RelationshipEdge, previousCaseID string) (caseSyncStatus, error) {
 	connector, ok := h.activeDossierConnector(ctx)
 	if !ok {
-		return caseSyncStatus{State: "memory", Backend: "memory"}, nil
+		return caseSyncStatus{State: connectors.BackendMemory, Backend: connectors.BackendMemory}, nil
 	}
 	backend := connector.Metadata().ID
 	ref := connectors.DossierRef{CaseID: caseData.ID, CaseName: caseData.Name, SubjectName: caseData.Subject.Codename}
@@ -186,7 +186,7 @@ func (h *Handler) syncCreatedCase(ctx context.Context, caseData casefile.Case, n
 
 func (h *Handler) activeDossierConnector(ctx context.Context) (connectors.Connector, bool) {
 	for _, info := range h.connectors.List(ctx) {
-		if info.Status.State != "connected" || !hasCapability(info.Metadata.Capabilities, "dossier.write") {
+		if info.Status.State != connectors.StateConnected || !connectors.HasCapability(info.Metadata.Capabilities, connectors.CapabilityDossierWrite) {
 			continue
 		}
 		connector, err := h.connectors.Get(info.Metadata.ID)

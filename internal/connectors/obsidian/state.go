@@ -46,7 +46,7 @@ func (c *Connector) workspaceStatePath(key string, create bool) (string, error) 
 	if !stateKeyPattern.MatchString(key) {
 		return "", errors.New("invalid workspace state key")
 	}
-	directory := filepath.Join(c.vaultPath, filepath.Dir(c.dossierDir), ".state")
+	directory := c.stateRoot()
 	if create {
 		if err := os.MkdirAll(directory, 0o755); err != nil {
 			return "", fmt.Errorf("create workspace state directory: %w", err)

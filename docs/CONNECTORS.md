@@ -25,7 +25,7 @@ Register the implementation in `main.go` with `connectors.NewRegistry`. The HTTP
 
 ## Metadata
 
-Every connector must expose:
+Every connector must expose the following metadata. Use the exported `Capability*` and `State*` constants from `pkg/connectors`; use `HasCapability` when inspecting metadata so providers and consumers share the same identifiers.
 
 - A stable lowercase ASCII `id`
 - A human-readable name and description
@@ -55,7 +55,9 @@ The HTTP dossier response includes `caseId`, and clients must return it on `PUT`
 
 Connector writes should be transactional when the external system allows it. The Obsidian implementation writes a temporary file in the destination directory, flushes it, and renames it over the Markdown document.
 
-Attachment providers receive server-generated IDs and bounded content. They must validate node and attachment IDs again, keep original filenames as metadata rather than path components, enforce `MaxRelationshipAttachmentSize` and `MaxRelationshipAttachmentsPerNode`, and verify the SHA-256 digest when reading persisted content. Deletion should use recoverable local trash where the storage backend supports it.
+Attachment providers receive server-generated IDs and bounded content. They must validate node and attachment IDs again, keep original filenames as metadata rather than path components, enforce the exported attachment limits, use `IsRelationshipImageMediaType` for image capability checks, and verify the SHA-256 digest when reading persisted content. Deletion should use recoverable local trash where the storage backend supports it.
+
+Timeline providers should call `NormalizeTimelineEvent` and `NormalizeTimelineNote` on new input. The shared HTTP layer already does this, but provider-side validation protects direct connector consumers and keeps Unicode-aware limits consistent.
 
 ## Security Requirements
 
@@ -73,6 +75,7 @@ Generic dossier routes are exposed as:
 
 ```text
 GET /api/integrations
+GET /api/config
 GET /api/integrations/{id}/dossier
 PUT /api/integrations/{id}/dossier
 GET /api/cases
@@ -80,6 +83,8 @@ PUT /api/cases/active
 DELETE /api/cases/{id}
 DELETE /api/events/{id}
 ```
+
+`GET /api/config` is the versioned browser contract for connector state identifiers, attachment constraints, supported image media types, and timeline text limits. UI extensions should read it instead of copying backend constants.
 
 Timeline and map providers use the shared `/api/timeline` and `/api/map` route families. Browser code never imports an Obsidian-specific API.
 

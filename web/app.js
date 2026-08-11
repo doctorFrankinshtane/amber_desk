@@ -11,10 +11,10 @@ const state = {
   dossierDirty: false,
   connectorMessageKey: "connector.checking",
   connectorMessageError: false,
-  timelineBackend: "memory",
+  timelineBackend: AmberAPI.getConfig().connectors.memoryBackend,
   workView: "timeline-view",
   cases: [],
-  casesBackend: "memory",
+  casesBackend: AmberAPI.getConfig().connectors.memoryBackend,
   avatar: { primaryNodeID: "", coverAttachmentID: "", requestID: 0 },
   panels: { dossierCollapsed: false, evidenceCollapsed: false },
 };
@@ -50,17 +50,18 @@ async function init() {
     updateClock();
     window.setInterval(updateClock, 1000);
     AmberBoot.report("core", "ok", "READY");
+    const configReady = await AmberAPI.loadConfig().then(() => true).catch(() => false);
     const [healthReady, caseReady] = await Promise.all([checkRuntimeHealth(), loadCase(), loadIntegrations()]);
-    AmberBoot.report("api", healthReady ? "ok" : "error", healthReady ? "OK" : "FAILED");
+    AmberBoot.report("api", healthReady && configReady ? "ok" : "error", healthReady && configReady ? "OK" : "FAILED");
     const integration = obsidianIntegration();
-    const vaultConnected = integration?.status.state === "connected";
+    const vaultConnected = AmberAPI.isConnected(integration?.status.state);
     AmberBoot.report("vault", vaultConnected ? "ok" : "warn", vaultConnected ? "LINKED" : "LOCAL");
     const casesReady = await loadCases(true);
     AmberBoot.report("case", caseReady && casesReady ? "ok" : "error", caseReady && casesReady ? "MOUNTED" : "FAILED");
     await window.AmberChecklist.init();
     AmberBoot.report("workspace", healthReady && caseReady ? "ok" : "warn", healthReady && caseReady ? "OPEN" : "DEGRADED");
     window.setInterval(() => {
-      if (!document.hidden && state.caseData && state.timelineBackend === "obsidian") loadTimeline(true);
+      if (!document.hidden && state.caseData && AmberAPI.isPersistentBackend(state.timelineBackend)) loadTimeline(true);
     }, 15000);
     if (parameters.get("connector") === "obsidian") await openDossierEditor();
   } finally {
@@ -74,9 +75,8 @@ function finishBoot() {
 
 async function checkRuntimeHealth() {
   try {
-    const response = await fetch("/api/health", { headers: { Accept: "application/json" } });
-    const payload = await response.json();
-    return response.ok && payload.status === "ok";
+    const payload = await AmberAPI.requestJSON("/api/health");
+    return payload.status === "ok";
   } catch { return false; }
 }
 
@@ -142,7 +142,7 @@ function bindEvents() {
     state.dossier = null;
     state.dossierDirty = false;
     elements["dossier-content"].value = "";
-    state.timelineBackend = event.detail.sync.backend || "memory";
+    state.timelineBackend = event.detail.sync.backend || AmberAPI.getConfig().connectors.memoryBackend;
     elements["timeline-backend"].textContent = state.timelineBackend.toUpperCase();
     renderCase();
     await loadCases(true);
@@ -207,9 +207,7 @@ function bindEvents() {
 
 async function loadCase() {
   try {
-    const response = await fetch("/api/case", { headers: { Accept: "application/json" } });
-    if (!response.ok) throw new Error(`API ${response.status}`);
-    state.caseData = await response.json();
+    state.caseData = await AmberAPI.requestJSON("/api/case");
     await loadTimeline();
     state.selectedID = state.caseData.events[0]?.id || null;
     elements["api-state"].textContent = I18n.t("state.synced");
@@ -230,7 +228,7 @@ async function loadTimeline(silent = false, generatedID = "") {
   try {
     const snapshot = await request("/api/timeline", {});
     state.caseData.events = snapshot.events || [];
-    state.timelineBackend = snapshot.backend || "memory";
+    state.timelineBackend = snapshot.backend || AmberAPI.getConfig().connectors.memoryBackend;
     elements["timeline-backend"].textContent = state.timelineBackend.toUpperCase();
     if (state.selectedID && !state.caseData.events.some((event) => event.id === state.selectedID)) state.selectedID = state.caseData.events[0]?.id || null;
     if (silent) { renderTimeline(generatedID); renderEvidence(); }
@@ -243,7 +241,7 @@ async function loadCases(silent = false) {
   try {
     const snapshot = await request("/api/cases", {});
     state.cases = snapshot.cases || [];
-    state.casesBackend = snapshot.backend || "memory";
+    state.casesBackend = snapshot.backend || AmberAPI.getConfig().connectors.memoryBackend;
     renderCasePicker();
     return true;
   } catch (error) {
@@ -446,7 +444,7 @@ function updateConnectorButton() {
 async function openDossierEditor() {
   const integration = obsidianIntegration();
   elements["dossier-dialog"].showModal();
-  if (!integration || integration.status.state !== "connected") {
+  if (!integration || !AmberAPI.isConnected(integration.status.state)) {
     const unconfigured = integration?.status.state === "unconfigured";
     elements["dossier-content"].disabled = true;
     elements["dossier-refresh"].disabled = true;
@@ -711,6 +709,7 @@ function renderEvidence() {
   verifyButton.addEventListener("click", () => setSelectedStatus(nextStatus));
   fragment.querySelector(".copy-button").addEventListener("click", () => copyFingerprint(event.fingerprint));
   fragment.querySelector(".note-form").addEventListener("submit", addNote);
+	AmberAPI.applyConstraints(fragment);
   elements["evidence-content"].replaceChildren(fragment);
 }
 
@@ -764,14 +763,7 @@ async function addNote(event) {
 }
 
 async function request(url, options) {
-  const response = await fetch(url, { ...options, headers: { "Content-Type": "application/json", Accept: "application/json" } });
-  const payload = await response.json();
-  if (!response.ok) {
-    const error = new Error(payload.error || `API ${response.status}`);
-    error.status = response.status;
-    throw error;
-  }
-  return payload;
+  return AmberAPI.requestJSON(url, options);
 }
 
 function replaceEvent(updated) {
@@ -906,8 +898,9 @@ function setAvatarFallback() {
 async function uploadSubjectAvatar(event) {
   const file = event.target.files[0]; event.target.value = "";
   if (!file) return;
-  if (!["image/jpeg", "image/png", "image/webp", "image/gif"].includes(file.type)) { setAvatarStatus("avatar.invalidType", true); return; }
-  if (file.size <= 0 || file.size > 10 * 1024 * 1024) { setAvatarStatus("avatar.invalidSize", true); return; }
+  const attachmentConfig = AmberAPI.getConfig().attachments;
+  if (!AmberAPI.isImageMediaType(file.type)) { setAvatarStatus("avatar.invalidType", true); return; }
+  if (file.size <= 0 || file.size > attachmentConfig.maxBytes) { setAvatarStatus("avatar.invalidSize", true); return; }
   if (!state.avatar.primaryNodeID) await loadSubjectAvatar();
   const nodeID = state.avatar.primaryNodeID, caseID = state.caseData?.id;
   if (!nodeID || !caseID) { setAvatarStatus("avatar.noPrimary", true); return; }
@@ -915,12 +908,8 @@ async function uploadSubjectAvatar(event) {
   shell.classList.add("uploading"); elements["subject-avatar-upload"].disabled = true; setAvatarStatus("avatar.uploading");
   try {
     const body = new FormData(); body.append("caseId", caseID); body.append("file", file, file.name);
-    const uploadResponse = await fetch(`/api/relationships/nodes/${encodeURIComponent(nodeID)}/attachments`, { method: "POST", headers: { Accept: "application/json" }, body });
-    const attachment = await uploadResponse.json();
-    if (!uploadResponse.ok) throw new Error(attachment.error || `API ${uploadResponse.status}`);
-    const coverResponse = await fetch(`/api/relationships/nodes/${encodeURIComponent(nodeID)}/cover`, { method: "PUT", headers: { Accept: "application/json", "Content-Type": "application/json" }, body: JSON.stringify({ caseId: caseID, attachmentId: attachment.id }) });
-    const cover = await coverResponse.json();
-    if (!coverResponse.ok) { setAvatarStatus("avatar.coverFailed", true); return; }
+    const attachment = await AmberAPI.requestJSON(`/api/relationships/nodes/${encodeURIComponent(nodeID)}/attachments`, { method: "POST", body });
+    const cover = await AmberAPI.requestJSON(`/api/relationships/nodes/${encodeURIComponent(nodeID)}/cover`, { method: "PUT", body: JSON.stringify({ caseId: caseID, attachmentId: attachment.id }) });
     state.avatar.coverAttachmentID = cover.coverAttachmentId;
     await loadSubjectAvatar();
     setAvatarStatus("avatar.saved");

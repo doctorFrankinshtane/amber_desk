@@ -56,25 +56,61 @@ func New(config Config) (*Connector, error) {
 	return &Connector{vaultPath: vault, dossierDir: cleanDirectory, configured: vault != ""}, nil
 }
 
+func (c *Connector) workspaceRoot() string {
+	return filepath.Join(c.vaultPath, filepath.Dir(c.dossierDir))
+}
+
+func (c *Connector) dossierRoot() string {
+	return filepath.Join(c.vaultPath, c.dossierDir)
+}
+
+func (c *Connector) casesRoot() string {
+	return filepath.Join(c.workspaceRoot(), "Cases")
+}
+
+func (c *Connector) stateRoot() string {
+	return filepath.Join(c.workspaceRoot(), ".state")
+}
+
 func (c *Connector) Metadata() connectors.Metadata {
 	return connectors.Metadata{
 		ID: ID, Name: "Obsidian", Description: "Markdown dossier synchronization with a local Obsidian vault",
-		Capabilities: []string{"dossier.read", "dossier.write", "timeline.read", "timeline.write", "timeline.delete", "map.read", "map.write", "relationships.read", "relationships.write", "relationships.attachments.read", "relationships.attachments.write", "relationships.attachments.delete", "checklist.read", "checklist.write", "workspace.state.read", "workspace.state.write", "cases.read", "cases.write", "cases.delete"}, Configured: c.configured,
+		Capabilities: []string{
+			connectors.CapabilityDossierRead,
+			connectors.CapabilityDossierWrite,
+			connectors.CapabilityTimelineRead,
+			connectors.CapabilityTimelineWrite,
+			connectors.CapabilityTimelineDelete,
+			connectors.CapabilityMapRead,
+			connectors.CapabilityMapWrite,
+			connectors.CapabilityRelationshipsRead,
+			connectors.CapabilityRelationshipsWrite,
+			connectors.CapabilityRelationshipAttachmentsRead,
+			connectors.CapabilityRelationshipAttachmentsWrite,
+			connectors.CapabilityRelationshipAttachmentsDelete,
+			connectors.CapabilityChecklistRead,
+			connectors.CapabilityChecklistWrite,
+			connectors.CapabilityWorkspaceStateRead,
+			connectors.CapabilityWorkspaceStateWrite,
+			connectors.CapabilityCasesRead,
+			connectors.CapabilityCasesWrite,
+			connectors.CapabilityCasesDelete,
+		}, Configured: c.configured,
 	}
 }
 
 func (c *Connector) Status(_ context.Context) connectors.Status {
 	if !c.configured {
-		return connectors.Status{State: "unconfigured", Message: "OBSIDIAN_VAULT is not set"}
+		return connectors.Status{State: connectors.StateUnconfigured, Message: "OBSIDIAN_VAULT is not set"}
 	}
 	info, err := os.Stat(c.vaultPath)
 	if err != nil {
-		return connectors.Status{State: "offline", Message: "vault path is unavailable"}
+		return connectors.Status{State: connectors.StateOffline, Message: "vault path is unavailable"}
 	}
 	if !info.IsDir() {
-		return connectors.Status{State: "error", Message: "vault path is not a directory"}
+		return connectors.Status{State: connectors.StateError, Message: "vault path is not a directory"}
 	}
-	return connectors.Status{State: "connected", Message: "vault is available"}
+	return connectors.Status{State: connectors.StateConnected, Message: "vault is available"}
 }
 
 func (c *Connector) ReadDossier(_ context.Context, ref connectors.DossierRef) (connectors.Dossier, error) {
@@ -155,7 +191,7 @@ func (c *Connector) dossierPath(ref connectors.DossierRef, createDirectory bool)
 	if err != nil || !vaultInfo.IsDir() {
 		return "", "", errors.New("obsidian vault is unavailable")
 	}
-	directory := filepath.Join(c.vaultPath, c.dossierDir)
+	directory := c.dossierRoot()
 	if createDirectory {
 		if err := os.MkdirAll(directory, 0o755); err != nil {
 			return "", "", fmt.Errorf("create dossier directory: %w", err)

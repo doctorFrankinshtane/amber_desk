@@ -13,7 +13,7 @@ window.AmberMap = (() => {
   async function init() {
     if (state.map) return refresh();
     cache();
-    const basemap = await fetch("/api/map/basemap").then((response) => response.json()).catch(() => ({ configured: false, minZoom: 2, maxZoom: 8 }));
+    const basemap = await AmberAPI.requestJSON("/api/map/basemap").catch(() => ({ configured: false, minZoom: 2, maxZoom: 8 }));
     state.localBasemap = Boolean(basemap.configured);
     state.map = L.map("world-map", { attributionControl: false, zoomControl: true, minZoom: state.localBasemap ? basemap.minZoom : 2, maxZoom: state.localBasemap ? basemap.maxZoom : 8, worldCopyJump: true }).setView([24, 18], 2);
     createPane("localTiles", 100);
@@ -342,11 +342,7 @@ window.AmberMap = (() => {
   }
 
   async function request(url, options = {}) {
-    const response = await fetch(url, { ...options, headers: { Accept: "application/json", "Content-Type": "application/json" } });
-    if (response.status === 204) return null;
-    const payload = await response.json();
-    if (!response.ok) throw new Error(payload.error || `API ${response.status}`);
-    return payload;
+    return AmberAPI.requestJSON(url, options);
   }
 
   function setStatus(message, error = false) { el["map-status"].classList.toggle("error", error); AmberMotion.typeText(el["map-status"], message, { tone: error ? "error" : "ok" }); }

@@ -13,9 +13,7 @@ window.AmberCatalog = (() => {
     if (state.snapshot) return;
     setLoading("LOADING LOCAL CATALOG...");
     try {
-      const response = await fetch("/api/catalog", { headers: { Accept: "application/json" } });
-      const payload = await response.json();
-      if (!response.ok) throw new Error(payload.error || `API ${response.status}`);
+      const payload = await AmberAPI.requestJSON("/api/catalog");
       state.snapshot = payload;
       state.selectedID = payload.tools[0]?.id || null;
       populateFilters();
@@ -135,9 +133,7 @@ window.AmberCatalog = (() => {
     button.disabled = true;
     try {
       const now = new Date();
-      const response = await fetch("/api/timeline/events", { method: "POST", headers: { "Content-Type": "application/json", Accept: "application/json" }, body: JSON.stringify({ occurredAt: now.toISOString(), time: now.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit", hour12: false }), date: now.toLocaleDateString("en-GB", { day: "2-digit", month: "short" }).toUpperCase(), type: "tool", title: `Tool selected: ${tool.name}`, summary: `${tool.path.join(" / ")}. ${tool.bestFor || tool.description || "OSINT source selected for investigation."}`, source: "OSINT Framework", sourceUrl: tool.url, confidence: 50, status: "pending", fingerprint: `CATALOG:${state.snapshot.metadata.version.slice(0, 12)}:${tool.id}`, indicators: [tool.url], notes: [] }) });
-      const payload = await response.json();
-      if (!response.ok) throw new Error(payload.error || `API ${response.status}`);
+      const payload = await AmberAPI.requestJSON("/api/timeline/events", { method: "POST", body: JSON.stringify({ occurredAt: now.toISOString(), time: now.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit", hour12: false }), date: now.toLocaleDateString("en-GB", { day: "2-digit", month: "short" }).toUpperCase(), type: "tool", title: `Tool selected: ${tool.name}`, summary: `${tool.path.join(" / ")}. ${tool.bestFor || tool.description || "OSINT source selected for investigation."}`, source: "OSINT Framework", sourceUrl: tool.url, confidence: 50, status: "pending", fingerprint: `CATALOG:${state.snapshot.metadata.version.slice(0, 12)}:${tool.id}`, indicators: [tool.url], notes: [] }) });
       AmberMotion.typeText(button, I18n.t("catalog.logged"));
       document.dispatchEvent(new CustomEvent("amber:timeline-changed", { detail: payload }));
     } catch (error) {

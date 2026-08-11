@@ -17,11 +17,6 @@ var (
 	ErrAttachmentLarge = errors.New("attachment exceeds size limit")
 )
 
-const (
-	MaxRelationshipAttachmentSize     int64 = 10 << 20
-	MaxRelationshipAttachmentsPerNode       = 20
-)
-
 type Metadata struct {
 	ID           string   `json:"id"`
 	Name         string   `json:"name"`

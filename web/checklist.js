@@ -139,9 +139,7 @@ window.AmberChecklist = (() => {
   }
 
   async function api(url, options = {}) {
-    const response = await fetch(url, { headers: { Accept: "application/json", ...(options.body ? { "Content-Type": "application/json" } : {}) }, ...options });
-    if (response.status === 204) return null;
-    const payload = await response.json(); if (!response.ok) throw new Error(payload.error || `API ${response.status}`); return payload;
+    return AmberAPI.requestJSON(url, options);
   }
 
   function recommendedTask(tasks) { const pinned = tasks.find((task) => task.id === state.snapshot.recommendedTaskId && task.status === "pending"); return pinned || tasks.find((task) => task.status === "pending") || null; }

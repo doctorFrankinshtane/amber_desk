@@ -26,7 +26,7 @@ window.DossierWizard = (() => {
     init();
     showStep(1);
     el["wizard-message"].textContent = "";
-    document.getElementById("wizard-sync-hint").textContent = document.getElementById("obsidian-open").dataset.state === "connected" ? "LOCAL + OBSIDIAN / READY" : "LOCAL MEMORY / OBSIDIAN OPTIONAL";
+    document.getElementById("wizard-sync-hint").textContent = AmberAPI.isConnected(document.getElementById("obsidian-open").dataset.state) ? "LOCAL + OBSIDIAN / READY" : "LOCAL MEMORY / OBSIDIAN OPTIONAL";
     el["case-wizard"].showModal();
     window.setTimeout(() => document.getElementById("wizard-case-name").focus(), 0);
   }
@@ -90,9 +90,7 @@ window.DossierWizard = (() => {
     el["wizard-submit"].disabled = true;
     AmberMotion.typeText(el["wizard-message"], "CREATING DOSSIER...");
     try {
-      const response = await fetch("/api/case", { method: "POST", headers: { "Content-Type": "application/json", Accept: "application/json" }, body: JSON.stringify(payload) });
-      const result = await response.json();
-      if (!response.ok) throw new Error(result.error || `API ${response.status}`);
+      const result = await AmberAPI.requestJSON("/api/case", { method: "POST", body: JSON.stringify(payload) });
       AmberMotion.typeText(el["wizard-message"], result.sync.state === "synced" ? "DOSSIER CREATED / OBSIDIAN SYNCED" : result.sync.state === "sync_pending" ? "DOSSIER CREATED / SYNC PENDING" : "DOSSIER CREATED / LOCAL");
       document.dispatchEvent(new CustomEvent("amber:case-created", { detail: result }));
       window.setTimeout(() => { el["case-wizard"].close(); el["case-wizard-form"].reset(); el["wizard-identifiers"].replaceChildren(); el["wizard-relations"].replaceChildren(); el["wizard-confidence-value"].textContent = "40%"; }, 500);

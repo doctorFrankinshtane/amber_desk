@@ -27,6 +27,24 @@ type documentHeader struct {
 	CaseID  string `yaml:"case_id"`
 }
 
+const (
+	documentSchemaVersion        = 1
+	documentKindTimelineEvent    = "timeline_event"
+	documentKindMapMarker        = "map_marker"
+	documentKindMapRoute         = "map_route"
+	documentKindRelationshipNode = "relationship_node"
+	documentKindRelationshipEdge = "relationship_edge"
+	documentKindChecklist        = "investigation_checklist"
+)
+
+func newDocumentHeader(kind, caseID string) documentHeader {
+	return documentHeader{Version: documentSchemaVersion, Kind: kind, CaseID: caseID}
+}
+
+func (header documentHeader) valid(kind, caseID string) bool {
+	return header.Version == documentSchemaVersion && header.Kind == kind && header.CaseID == caseID
+}
+
 func (c *Connector) caseDirectory(ref connectors.DossierRef, create bool, parts ...string) (string, error) {
 	if !c.configured {
 		return "", connectors.ErrNotConfigured
@@ -34,7 +52,7 @@ func (c *Connector) caseDirectory(ref connectors.DossierRef, create bool, parts 
 	if info, err := os.Stat(c.vaultPath); err != nil || !info.IsDir() {
 		return "", errors.New("obsidian vault is unavailable")
 	}
-	casesRoot := filepath.Join(c.vaultPath, filepath.Dir(c.dossierDir), "Cases")
+	casesRoot := c.casesRoot()
 	root := filepath.Join(casesRoot, sanitize(ref.CaseID))
 	if _, err := os.Stat(root); errors.Is(err, os.ErrNotExist) {
 		if legacy, found, findErr := findLegacyCaseEntry(casesRoot, ref.CaseID, true); findErr != nil {

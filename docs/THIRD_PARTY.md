@@ -32,9 +32,7 @@ Natural Earth requests attribution but does not require it. Amber Desk includes 
 
 ## OSINT Framework
 
-- Snapshot version: `a744e613d7ded0aaa854896feb2a1069de34d2f8`
-- Project: https://github.com/lockfale/osint-framework
-- License: MIT
+- Provenance and license metadata: `web/data/osint-framework.meta.json`
 - Vendored dataset: `web/data/osint-framework.json`
 
 Catalog data is derived from OSINT Framework by Justin Nordine. The complete upstream license and copyright notice is included at `docs/licenses/OSINT-FRAMEWORK-LICENSE`.

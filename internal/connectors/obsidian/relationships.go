@@ -178,7 +178,7 @@ func (c *Connector) listRelationshipNodes(ref connectors.DossierRef) ([]connecto
 		if err := unmarshalNote(data, &document); err != nil {
 			return nil, fmt.Errorf("parse relationship node %s: %w", entry.Name(), err)
 		}
-		if document.AmberDesk.Kind == "relationship_node" && document.AmberDesk.CaseID == ref.CaseID {
+		if document.AmberDesk.valid(documentKindRelationshipNode, ref.CaseID) {
 			document.SourceIDs = append([]string{}, document.SourceIDs...)
 			result = append(result, document.RelationshipNode)
 		}
@@ -217,7 +217,7 @@ func (c *Connector) listRelationshipEdges(ref connectors.DossierRef) ([]connecto
 		if err := unmarshalNote(data, &document); err != nil {
 			return nil, fmt.Errorf("parse relationship edge %s: %w", entry.Name(), err)
 		}
-		if document.AmberDesk.Kind == "relationship_edge" && document.AmberDesk.CaseID == ref.CaseID {
+		if document.AmberDesk.valid(documentKindRelationshipEdge, ref.CaseID) {
 			document.SourceIDs = append([]string{}, document.SourceIDs...)
 			result = append(result, document.RelationshipEdge)
 		}
@@ -242,6 +242,9 @@ func (c *Connector) readRelationshipNode(ref connectors.DossierRef, id string) (
 	if err := unmarshalNote(data, &document); err != nil {
 		return connectors.RelationshipNode{}, err
 	}
+	if !document.AmberDesk.valid(documentKindRelationshipNode, ref.CaseID) {
+		return connectors.RelationshipNode{}, connectors.ErrEntityAbsent
+	}
 	return document.RelationshipNode, nil
 }
 
@@ -250,7 +253,7 @@ func (c *Connector) writeRelationshipNode(ref connectors.DossierRef, node connec
 	if err != nil {
 		return err
 	}
-	document := relationshipNodeDocument{AmberDesk: documentHeader{Version: 1, Kind: "relationship_node", CaseID: ref.CaseID}, RelationshipNode: node}
+	document := relationshipNodeDocument{AmberDesk: newDocumentHeader(documentKindRelationshipNode, ref.CaseID), RelationshipNode: node}
 	data, err := marshalNote(document, "# "+node.Title+"\n\n"+node.Details+"\n\n## Amber Desk\n\nRelationship node metadata is stored in YAML frontmatter.")
 	if err != nil {
 		return err
@@ -263,7 +266,7 @@ func (c *Connector) writeRelationshipEdge(ref connectors.DossierRef, edge connec
 	if err != nil {
 		return err
 	}
-	document := relationshipEdgeDocument{AmberDesk: documentHeader{Version: 1, Kind: "relationship_edge", CaseID: ref.CaseID}, RelationshipEdge: edge}
+	document := relationshipEdgeDocument{AmberDesk: newDocumentHeader(documentKindRelationshipEdge, ref.CaseID), RelationshipEdge: edge}
 	data, err := marshalNote(document, "# "+edge.Label+"\n\n"+edge.Note+"\n\n## Amber Desk\n\nRelationship edge metadata is stored in YAML frontmatter.")
 	if err != nil {
 		return err

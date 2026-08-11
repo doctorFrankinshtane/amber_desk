@@ -181,7 +181,7 @@ Open **RELATIONS**.
 - Select a card or thread to edit it in the right inspector.
 - The primary subject card cannot be deleted.
 
-For a saved card, use **+ ATTACH FILES** or **+ ADD PHOTO**. Each card accepts up to 20 files, each no larger than 10 MiB. A document-stack marker on the card shows that attachments exist. The first supported JPEG, PNG, WebP, or GIF becomes the cover; another image can be selected as the cover in the attachment list.
+For a saved card, use **+ ATTACH FILES** or **+ ADD PHOTO**. The browser reads attachment size, count, filename, and image-type limits from the local `/api/config` endpoint. A document-stack marker on the card shows that attachments exist. The first supported image becomes the cover; another image can be selected as the cover in the attachment list.
 
 The `+` button on the dossier portrait uploads the primary subject photo. It uses the cover of the primary relationship card, so changing it in either location changes the same stored attachment.
 
@@ -329,8 +329,7 @@ Use the `PROBLEMS` filter to inspect affected services. A service definition or 
 
 ### An attachment is rejected
 
-- Maximum: 20 files per card.
-- Maximum size: 10 MiB per file.
+- Current attachment limits are reported by the local `/api/config` endpoint.
 - The filename must be a plain filename, at most 180 Unicode characters, without path separators or control characters.
 
 ### Before reporting a bug

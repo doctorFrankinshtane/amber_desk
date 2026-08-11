@@ -4,12 +4,15 @@ import (
 	"bytes"
 	"context"
 	"embed"
+	"encoding/hex"
 	"encoding/json"
 	"errors"
 	"fmt"
+	"io"
 	"io/fs"
 	"log"
 	"net/http"
+	"net/url"
 	"os"
 	"os/signal"
 	"strconv"
@@ -39,9 +42,15 @@ func main() {
 	if err != nil {
 		log.Fatalf("load OSINT catalog: %v", err)
 	}
-	catalogProvider, err := catalogprovider.NewStatic(bytes.NewReader(catalogData), catalog.Metadata{
-		Name: "OSINT Framework", Source: "https://github.com/lockfale/osint-framework", Version: "a744e613d7ded0aaa854896feb2a1069de34d2f8", ImportedAt: "2026-08-10", License: "MIT",
-	})
+	metadataData, err := fs.ReadFile(webFiles, "web/data/osint-framework.meta.json")
+	if err != nil {
+		log.Fatalf("load OSINT catalog metadata: %v", err)
+	}
+	metadata, err := loadCatalogMetadata(metadataData)
+	if err != nil {
+		log.Fatalf("validate OSINT catalog metadata: %v", err)
+	}
+	catalogProvider, err := catalogprovider.NewStatic(bytes.NewReader(catalogData), metadata)
 	if err != nil {
 		log.Fatalf("validate OSINT catalog: %v", err)
 	}
@@ -110,6 +119,37 @@ func main() {
 	if err := server.ListenAndServe(); err != nil && err != http.ErrServerClosed {
 		log.Fatal(err)
 	}
+}
+
+func loadCatalogMetadata(data []byte) (catalog.Metadata, error) {
+	var metadata catalog.Metadata
+	decoder := json.NewDecoder(bytes.NewReader(data))
+	decoder.DisallowUnknownFields()
+	if err := decoder.Decode(&metadata); err != nil {
+		return catalog.Metadata{}, fmt.Errorf("decode metadata: %w", err)
+	}
+	var trailing any
+	if err := decoder.Decode(&trailing); !errors.Is(err, io.EOF) {
+		if err == nil {
+			return catalog.Metadata{}, errors.New("metadata must contain one JSON value")
+		}
+		return catalog.Metadata{}, fmt.Errorf("decode metadata trailer: %w", err)
+	}
+	if strings.TrimSpace(metadata.Name) == "" || strings.TrimSpace(metadata.License) == "" {
+		return catalog.Metadata{}, errors.New("metadata name and license are required")
+	}
+	parsedSource, err := url.ParseRequestURI(metadata.Source)
+	if err != nil || parsedSource.Scheme != "https" || parsedSource.Host == "" {
+		return catalog.Metadata{}, errors.New("metadata source must be an absolute HTTPS URL")
+	}
+	version, err := hex.DecodeString(metadata.Version)
+	if err != nil || len(version) != 20 {
+		return catalog.Metadata{}, errors.New("metadata version must be a 40-character commit SHA")
+	}
+	if _, err := time.Parse("2006-01-02", metadata.ImportedAt); err != nil {
+		return catalog.Metadata{}, errors.New("metadata importedAt must use YYYY-MM-DD")
+	}
+	return metadata, nil
 }
 
 func displayURL(addr string) string {

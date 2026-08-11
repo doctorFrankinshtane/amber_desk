@@ -24,7 +24,7 @@ func (h *Handler) listTimeline(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	snapshot := h.store.Snapshot()
-	writeJSON(w, http.StatusOK, connectors.TimelineSnapshot{Events: caseEventsToTimeline(snapshot.Events), Backend: "memory"})
+	writeJSON(w, http.StatusOK, connectors.TimelineSnapshot{Events: caseEventsToTimeline(snapshot.Events), Backend: connectors.BackendMemory})
 }
 
 func (h *Handler) bootstrapTimeline(w http.ResponseWriter, r *http.Request) {
@@ -48,6 +48,12 @@ func (h *Handler) createTimelineEvent(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusBadRequest, "invalid timeline event")
 		return
 	}
+	var err error
+	event, err = connectors.NormalizeTimelineEvent(event)
+	if err != nil {
+		writeError(w, http.StatusBadRequest, err.Error())
+		return
+	}
 	if connector, ok := h.activeTimelineConnector(r.Context()); ok {
 		created, err := connector.CreateTimelineEvent(r.Context(), h.dossierRef(), event)
 		if err != nil {
@@ -55,10 +61,6 @@ func (h *Handler) createTimelineEvent(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 		writeJSON(w, http.StatusCreated, created)
-		return
-	}
-	if strings.TrimSpace(event.Title) == "" || event.Confidence < 0 || event.Confidence > 100 {
-		writeError(w, http.StatusBadRequest, "timeline title and confidence from 0 to 100 are required")
 		return
 	}
 	now := time.Now().UTC()
@@ -97,7 +99,7 @@ func (h *Handler) listMap(w http.ResponseWriter, r *http.Request) {
 	}
 	h.mapMu.Lock()
 	defer h.mapMu.Unlock()
-	writeJSON(w, http.StatusOK, connectors.MapSnapshot{Markers: append([]connectors.MapMarker(nil), h.markers...), Routes: append([]connectors.MapRoute(nil), h.routes...), Backend: "memory"})
+	writeJSON(w, http.StatusOK, connectors.MapSnapshot{Markers: append([]connectors.MapMarker(nil), h.markers...), Routes: append([]connectors.MapRoute(nil), h.routes...), Backend: connectors.BackendMemory})
 }
 
 func (h *Handler) createMapMarker(w http.ResponseWriter, r *http.Request) {
@@ -243,7 +245,7 @@ func (h *Handler) deleteMapRoute(w http.ResponseWriter, r *http.Request) {
 
 func (h *Handler) activeTimelineConnector(ctx context.Context) (connectors.TimelineConnector, bool) {
 	for _, info := range h.connectors.List(ctx) {
-		if info.Status.State != "connected" || !hasCapability(info.Metadata.Capabilities, "timeline.read") {
+		if info.Status.State != connectors.StateConnected || !connectors.HasCapability(info.Metadata.Capabilities, connectors.CapabilityTimelineRead) {
 			continue
 		}
 		connector, err := h.connectors.Get(info.Metadata.ID)
@@ -257,7 +259,7 @@ func (h *Handler) activeTimelineConnector(ctx context.Context) (connectors.Timel
 
 func (h *Handler) activeMapConnector(ctx context.Context) (connectors.MapConnector, bool) {
 	for _, info := range h.connectors.List(ctx) {
-		if info.Status.State != "connected" || !hasCapability(info.Metadata.Capabilities, "map.read") {
+		if info.Status.State != connectors.StateConnected || !connectors.HasCapability(info.Metadata.Capabilities, connectors.CapabilityMapRead) {
 			continue
 		}
 		connector, err := h.connectors.Get(info.Metadata.ID)
@@ -267,15 +269,6 @@ func (h *Handler) activeMapConnector(ctx context.Context) (connectors.MapConnect
 		}
 	}
 	return nil, false
-}
-
-func hasCapability(items []string, expected string) bool {
-	for _, item := range items {
-		if item == expected {
-			return true
-		}
-	}
-	return false
 }
 
 func caseEventsToTimeline(events []casefile.Event) []connectors.TimelineEvent {

@@ -74,6 +74,65 @@ func TestStatusValidation(t *testing.T) {
 	}
 }
 
+func TestRuntimeConfigMatchesConnectorContract(t *testing.T) {
+	handler := newHandler()
+	response := request(t, handler, http.MethodGet, "/api/config", "")
+	if response.Code != http.StatusOK {
+		t.Fatalf("runtime config status = %d: %s", response.Code, response.Body.String())
+	}
+	var config struct {
+		Version    int `json:"version"`
+		Connectors struct {
+			ConnectedState string `json:"connectedState"`
+			MemoryBackend  string `json:"memoryBackend"`
+		} `json:"connectors"`
+		Attachments struct {
+			MaxBytes         int64    `json:"maxBytes"`
+			MaxPerNode       int      `json:"maxPerNode"`
+			MaxFilenameRunes int      `json:"maxFilenameRunes"`
+			ImageMediaTypes  []string `json:"imageMediaTypes"`
+		} `json:"attachments"`
+		Timeline struct {
+			TitleMaxRunes int `json:"titleMaxRunes"`
+			NoteMaxRunes  int `json:"noteMaxRunes"`
+		} `json:"timeline"`
+	}
+	decode(t, response, &config)
+	if config.Version != 1 || config.Connectors.ConnectedState != connectors.StateConnected || config.Connectors.MemoryBackend != connectors.BackendMemory {
+		t.Fatalf("connector runtime config = %+v", config.Connectors)
+	}
+	if config.Attachments.MaxBytes != connectors.MaxRelationshipAttachmentSize || config.Attachments.MaxPerNode != connectors.MaxRelationshipAttachmentsPerNode || config.Attachments.MaxFilenameRunes != connectors.MaxRelationshipAttachmentFilenameRunes || len(config.Attachments.ImageMediaTypes) == 0 {
+		t.Fatalf("attachment runtime config = %+v", config.Attachments)
+	}
+	if config.Timeline.TitleMaxRunes != connectors.MaxTimelineTitleRunes || config.Timeline.NoteMaxRunes != connectors.MaxTimelineNoteRunes {
+		t.Fatalf("timeline runtime config = %+v", config.Timeline)
+	}
+}
+
+func TestTimelineTextLimitsUseUnicodeCharacters(t *testing.T) {
+	handler := newHandler()
+	oversizedTitle, err := json.Marshal(connectors.TimelineEvent{Title: strings.Repeat("я", connectors.MaxTimelineTitleRunes+1), Confidence: 50})
+	if err != nil {
+		t.Fatal(err)
+	}
+	response := request(t, handler, http.MethodPost, "/api/timeline/events", string(oversizedTitle))
+	if response.Code != http.StatusBadRequest || !strings.Contains(response.Body.String(), "title exceeds") {
+		t.Fatalf("oversized title = %d: %s", response.Code, response.Body.String())
+	}
+
+	created := request(t, handler, http.MethodPost, "/api/timeline/events", `{"title":"Within limit","confidence":50}`)
+	var event connectors.TimelineEvent
+	decode(t, created, &event)
+	oversizedNote, err := json.Marshal(map[string]string{"text": strings.Repeat("я", connectors.MaxTimelineNoteRunes+1)})
+	if err != nil {
+		t.Fatal(err)
+	}
+	note := request(t, handler, http.MethodPost, "/api/events/"+event.ID+"/notes", string(oversizedNote))
+	if note.Code != http.StatusBadRequest || !strings.Contains(note.Body.String(), "note exceeds") {
+		t.Fatalf("oversized note = %d: %s", note.Code, note.Body.String())
+	}
+}
+
 func TestRequestSecurityPolicy(t *testing.T) {
 	handler := newHandler()
 

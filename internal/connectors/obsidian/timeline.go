@@ -43,7 +43,7 @@ func (c *Connector) ListTimeline(_ context.Context, ref connectors.DossierRef) (
 		if err := unmarshalNote(data, &document); err != nil {
 			return nil, fmt.Errorf("parse timeline note %s: %w", entry.Name(), err)
 		}
-		if document.AmberDesk.Kind != "timeline_event" || document.AmberDesk.CaseID != ref.CaseID {
+		if !document.AmberDesk.valid(documentKindTimelineEvent, ref.CaseID) {
 			continue
 		}
 		events = append(events, document.TimelineEvent)
@@ -108,8 +108,9 @@ func (c *Connector) CreateTimelineEvent(_ context.Context, ref connectors.Dossie
 	if event.Status == "" {
 		event.Status = "pending"
 	}
-	if event.Confidence < 0 || event.Confidence > 100 || strings.TrimSpace(event.Title) == "" {
-		return connectors.TimelineEvent{}, errors.New("timeline title and confidence from 0 to 100 are required")
+	event, err := connectors.NormalizeTimelineEvent(event)
+	if err != nil {
+		return connectors.TimelineEvent{}, err
 	}
 	path, err := c.timelinePath(ref, event.ID, true)
 	if err != nil {
@@ -146,9 +147,9 @@ func (c *Connector) AddTimelineNote(_ context.Context, ref connectors.DossierRef
 	c.timelineMu.Lock()
 	defer c.timelineMu.Unlock()
 
-	note.Text = strings.TrimSpace(note.Text)
-	if note.Text == "" {
-		return connectors.TimelineEvent{}, errors.New("note text is required")
+	note, err := connectors.NormalizeTimelineNote(note)
+	if err != nil {
+		return connectors.TimelineEvent{}, err
 	}
 	event, err := c.readTimelineEvent(ref, eventID)
 	if err != nil {
@@ -201,6 +202,9 @@ func (c *Connector) readTimelineEvent(ref connectors.DossierRef, eventID string)
 	if err := unmarshalNote(data, &document); err != nil {
 		return connectors.TimelineEvent{}, err
 	}
+	if !document.AmberDesk.valid(documentKindTimelineEvent, ref.CaseID) {
+		return connectors.TimelineEvent{}, connectors.ErrEntityAbsent
+	}
 	return document.TimelineEvent, nil
 }
 
@@ -209,7 +213,7 @@ func (c *Connector) writeTimelineEvent(ref connectors.DossierRef, event connecto
 	if err != nil {
 		return err
 	}
-	document := timelineDocument{AmberDesk: documentHeader{Version: 1, Kind: "timeline_event", CaseID: ref.CaseID}, TimelineEvent: event}
+	document := timelineDocument{AmberDesk: newDocumentHeader(documentKindTimelineEvent, ref.CaseID), TimelineEvent: event}
 	body := "# " + event.Title + "\n\n" + event.Summary + "\n\n## Amber Desk\n\nStructured fields are stored in YAML frontmatter."
 	data, err := marshalNote(document, body)
 	if err != nil {

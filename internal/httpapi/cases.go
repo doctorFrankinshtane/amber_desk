@@ -18,7 +18,7 @@ func (h *Handler) listCases(w http.ResponseWriter, r *http.Request) {
 		if current.Subject.Codename != "UNASSIGNED" {
 			items = append(items, caseSummary(current, true))
 		}
-		writeJSON(w, http.StatusOK, map[string]any{"cases": items, "backend": "memory"})
+		writeJSON(w, http.StatusOK, map[string]any{"cases": items, "backend": connectors.BackendMemory})
 		return
 	}
 	items, err := store.ListCases(r.Context())
@@ -123,7 +123,7 @@ func (h *Handler) replaceActiveCase(selected casefile.Case) {
 
 func (h *Handler) activeCaseStore(ctx context.Context) (connectors.CaseStoreConnector, bool) {
 	for _, info := range h.connectors.List(ctx) {
-		if info.Status.State != "connected" || !hasCapability(info.Metadata.Capabilities, "cases.read") {
+		if info.Status.State != connectors.StateConnected || !connectors.HasCapability(info.Metadata.Capabilities, connectors.CapabilityCasesRead) {
 			continue
 		}
 		connector, err := h.connectors.Get(info.Metadata.ID)

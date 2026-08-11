@@ -15,8 +15,37 @@ var (
 )
 
 const (
-	MaxRelationshipAttachmentSize     = internal.MaxRelationshipAttachmentSize
-	MaxRelationshipAttachmentsPerNode = internal.MaxRelationshipAttachmentsPerNode
+	BackendMemory                           = internal.BackendMemory
+	StateConnected                          = internal.StateConnected
+	StateUnconfigured                       = internal.StateUnconfigured
+	StateOffline                            = internal.StateOffline
+	StateError                              = internal.StateError
+	CapabilityDossierRead                   = internal.CapabilityDossierRead
+	CapabilityDossierWrite                  = internal.CapabilityDossierWrite
+	CapabilityTimelineRead                  = internal.CapabilityTimelineRead
+	CapabilityTimelineWrite                 = internal.CapabilityTimelineWrite
+	CapabilityTimelineDelete                = internal.CapabilityTimelineDelete
+	CapabilityMapRead                       = internal.CapabilityMapRead
+	CapabilityMapWrite                      = internal.CapabilityMapWrite
+	CapabilityRelationshipsRead             = internal.CapabilityRelationshipsRead
+	CapabilityRelationshipsWrite            = internal.CapabilityRelationshipsWrite
+	CapabilityRelationshipAttachmentsRead   = internal.CapabilityRelationshipAttachmentsRead
+	CapabilityRelationshipAttachmentsWrite  = internal.CapabilityRelationshipAttachmentsWrite
+	CapabilityRelationshipAttachmentsDelete = internal.CapabilityRelationshipAttachmentsDelete
+	CapabilityChecklistRead                 = internal.CapabilityChecklistRead
+	CapabilityChecklistWrite                = internal.CapabilityChecklistWrite
+	CapabilityWorkspaceStateRead            = internal.CapabilityWorkspaceStateRead
+	CapabilityWorkspaceStateWrite           = internal.CapabilityWorkspaceStateWrite
+	CapabilityCasesRead                     = internal.CapabilityCasesRead
+	CapabilityCasesWrite                    = internal.CapabilityCasesWrite
+	CapabilityCasesDelete                   = internal.CapabilityCasesDelete
+	MaxRelationshipAttachmentSize           = internal.MaxRelationshipAttachmentSize
+	MaxRelationshipAttachmentsPerNode       = internal.MaxRelationshipAttachmentsPerNode
+	MaxRelationshipAttachmentFilenameRunes  = internal.MaxRelationshipAttachmentFilenameRunes
+	MaxTimelineTitleRunes                   = internal.MaxTimelineTitleRunes
+	MaxTimelineSummaryRunes                 = internal.MaxTimelineSummaryRunes
+	MaxTimelineSourceRunes                  = internal.MaxTimelineSourceRunes
+	MaxTimelineNoteRunes                    = internal.MaxTimelineNoteRunes
 )
 
 type Metadata = internal.Metadata
@@ -52,4 +81,24 @@ type Registry = internal.Registry
 
 func NewRegistry(items ...Connector) *Registry {
 	return internal.NewRegistry(items...)
+}
+
+func HasCapability(items []string, expected string) bool {
+	return internal.HasCapability(items, expected)
+}
+
+func RelationshipImageMediaTypes() []string {
+	return internal.RelationshipImageMediaTypes()
+}
+
+func IsRelationshipImageMediaType(mediaType string) bool {
+	return internal.IsRelationshipImageMediaType(mediaType)
+}
+
+func NormalizeTimelineEvent(event TimelineEvent) (TimelineEvent, error) {
+	return internal.NormalizeTimelineEvent(event)
+}
+
+func NormalizeTimelineNote(note TimelineNote) (TimelineNote, error) {
+	return internal.NormalizeTimelineNote(note)
 }

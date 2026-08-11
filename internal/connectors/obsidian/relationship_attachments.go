@@ -219,7 +219,7 @@ func (c *Connector) readAttachmentMetadata(path string) (connectors.Relationship
 }
 
 func validateAttachmentFilename(name string) error {
-	if name == "" || name == "." || name == ".." || filepath.Base(name) != name || strings.ContainsAny(name, `/\\`) || utf8.RuneCountInString(name) > 180 {
+	if name == "" || name == "." || name == ".." || filepath.Base(name) != name || strings.ContainsAny(name, `/\\`) || utf8.RuneCountInString(name) > connectors.MaxRelationshipAttachmentFilenameRunes {
 		return connectors.ErrInvalidFilename
 	}
 	for _, char := range name {

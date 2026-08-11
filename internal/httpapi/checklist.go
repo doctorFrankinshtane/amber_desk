@@ -245,7 +245,7 @@ func (h *Handler) loadChecklist(ctx context.Context) (connectors.ChecklistSnapsh
 		h.checklists[ref.CaseID] = snapshot
 	}
 	snapshot = guide.Merge(snapshot)
-	snapshot.Backend = "memory"
+	snapshot.Backend = connectors.BackendMemory
 	return snapshot, nil
 }
 
@@ -254,14 +254,14 @@ func (h *Handler) saveChecklist(ctx context.Context, snapshot connectors.Checkli
 	if connector, ok := h.activeChecklistConnector(ctx); ok {
 		return connector.WriteChecklist(ctx, h.dossierRef(), snapshot)
 	}
-	snapshot.Backend = "memory"
+	snapshot.Backend = connectors.BackendMemory
 	h.checklists[h.dossierRef().CaseID] = snapshot
 	return snapshot, nil
 }
 
 func (h *Handler) activeChecklistConnector(ctx context.Context) (connectors.ChecklistConnector, bool) {
 	for _, info := range h.connectors.List(ctx) {
-		if info.Status.State != "connected" || !hasCapability(info.Metadata.Capabilities, "checklist.read") {
+		if info.Status.State != connectors.StateConnected || !connectors.HasCapability(info.Metadata.Capabilities, connectors.CapabilityChecklistRead) {
 			continue
 		}
 		connector, err := h.connectors.Get(info.Metadata.ID)

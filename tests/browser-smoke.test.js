@@ -49,6 +49,10 @@ async function main() {
     await page.waitForTimeout(2_700);
     assert.equal(await page.locator("#command-output").textContent(), "WORKSPACE READY");
     assert.equal(await page.evaluate(() => document.documentElement.scrollWidth > innerWidth + 1), false);
+    const runtime = await page.evaluate(() => window.AmberAPI.getConfig());
+    assert.equal(runtime.version, 1);
+    assert.equal(await page.locator("#event-title").getAttribute("maxlength"), String(runtime.timeline.titleMaxRunes));
+    assert.equal(await page.locator("#subject-avatar-input").getAttribute("accept"), runtime.attachments.imageMediaTypes.join(","));
 
     const beforeMap = localRequests.length;
     await page.locator('[data-work-view="map-view"]').click();
