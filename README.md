@@ -2,7 +2,7 @@
   <img src="docs/assets/amber-desk-logo.png" width="180" alt="Amber Desk pixel globe logo">
 </p>
 
-<h1 align="center">Amber Desk</h1>
+<h1 align="center">amber_desk</h1>
 
 <p align="center">
   Local-first OSINT investigation workspace with dossiers, chronology, maps, relationship graphs, and extensible connectors.
