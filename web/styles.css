@@ -92,7 +92,12 @@ button:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-
 .brand { display: flex; align-items: center; gap: 8px; color: var(--ink-bright); text-decoration: none; padding: 0 12px; border-right: 1px solid var(--line); overflow: hidden; }
 .ascii-brand { margin: 0; color: var(--ink-bright); font: 400 4px/4.5px var(--font); white-space: pre; text-shadow: .5px .5px 0 #533519; }
 .ascii-brand-mini { display: none; }
-.ascii-planet { flex: 0 0 auto; margin: 0; color: var(--ink); font: 5px/5.7px var(--font); white-space: pre; text-align: center; text-shadow: 0 0 5px #f5b94e66; }
+.brand-mark { position: relative; flex: 0 0 44px; width: 44px; height: 44px; overflow: hidden; }
+.brand-mark img { display: block; width: 44px; height: 44px; image-rendering: pixelated; opacity: .9; }
+.brand-mark::before { content: ""; position: absolute; top: 6px; left: 6px; width: 2px; height: 32px; background: var(--ink-bright); opacity: .25; transform: translateX(0); animation: brand-mark-scan 1800ms steps(8, end) infinite; }
+.brand-mark::after { content: ""; position: absolute; top: 16px; right: 11px; width: 4px; height: 4px; background: var(--ink-bright); opacity: .4; animation: brand-mark-pulse 900ms steps(2, end) infinite; }
+@keyframes brand-mark-scan { 50% { opacity: .9; } to { opacity: .25; transform: translateX(30px); } }
+@keyframes brand-mark-pulse { 50% { opacity: 1; transform: scale(1.5); } }
 .system-state small { display: block; margin-top: 3px; color: var(--ink-dim); font-size: 8px; }
 .case-strip { display: flex; align-items: center; gap: 8px; padding: 0 13px; border: 0; border-right: 1px solid var(--line); background: transparent; min-width: 0; text-align: left; }
 .case-strip:hover, .case-strip[aria-expanded="true"] { background: #1a1108; }
@@ -507,7 +512,7 @@ button:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-
 @media (max-width: 1180px) {
   .topbar { grid-template-columns: 205px 145px minmax(190px,1fr) 126px 150px; }
   .ascii-brand-full { font-size: 3px; line-height: 3.5px; }
-  .ascii-planet { display: none; }
+  .brand-mark { display: none; }
   .system-state { grid-template-columns: 19px minmax(0,1fr) auto; gap: 4px; padding: 0 7px; }.system-state small { display: none; }.system-state time { font-size: 9px; }
   .workspace { grid-template-columns: 230px minmax(400px,1fr) 270px; }
   .identity-block { grid-template-columns: 72px 1fr; }.subject-avatar-shell { width: 72px; height: 72px; }.subject-avatar-shell canvas, .subject-avatar-shell img { width: 70px !important; height: 70px !important; }
