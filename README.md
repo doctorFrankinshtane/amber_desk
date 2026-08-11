@@ -9,6 +9,7 @@
 </p>
 
 <p align="center">
+  <a href="https://github.com/doctorFrankinshtane/amber_desk/actions/workflows/ci.yml"><img alt="CI status" src="https://github.com/doctorFrankinshtane/amber_desk/actions/workflows/ci.yml/badge.svg?branch=master"></a>
   <img alt="Development status" src="https://img.shields.io/badge/status-active%20development-F2A23A?style=flat-square">
   <img alt="Go 1.22 or newer" src="https://img.shields.io/badge/Go-1.22%2B-F2A23A?style=flat-square&logo=go&logoColor=090604">
   <img alt="Leaflet 1.9.4" src="https://img.shields.io/badge/Leaflet-1.9.4-F2A23A?style=flat-square&logo=leaflet&logoColor=090604">
