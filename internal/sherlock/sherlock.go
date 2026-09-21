@@ -70,21 +70,40 @@ type CLIRunner struct {
 }
 
 func NewCLIRunner(python string) *CLIRunner {
-	if python == "" {
-		python = defaultPython()
-	}
 	return &CLIRunner{Python: python, Timeout: 30 * time.Second}
 }
 
-func defaultPython() string {
-	if os.PathSeparator == '\\' {
-		return filepath.Join(".tools", "sherlock", "Scripts", "python.exe")
+// python resolves the default runtime on every call so a runtime installed
+// while Amber Desk is running is picked up without a restart.
+func (r *CLIRunner) python() string {
+	if r.Python != "" {
+		return r.Python
 	}
-	return filepath.Join(".tools", "sherlock", "bin", "python")
+	return defaultPython()
+}
+
+func defaultPython() string {
+	python := filepath.Join(".tools", "sherlock", "bin", "python")
+	if os.PathSeparator == '\\' {
+		python = filepath.Join(".tools", "sherlock", "Scripts", "python.exe")
+	}
+	// Release archives install the runtime next to the binary; `go run` builds
+	// into a temp dir, so fall back to the working directory for development.
+	if exe, err := os.Executable(); err == nil {
+		if candidate := filepath.Join(filepath.Dir(exe), python); fileExists(candidate) {
+			return candidate
+		}
+	}
+	return python
+}
+
+func fileExists(path string) bool {
+	info, err := os.Stat(path)
+	return err == nil && !info.IsDir()
 }
 
 func (r *CLIRunner) Status(ctx context.Context) RunnerStatus {
-	python, err := filepath.Abs(r.Python)
+	python, err := filepath.Abs(r.python())
 	if err != nil {
 		return RunnerStatus{Message: "invalid SHERLOCK_PYTHON path"}
 	}
@@ -122,7 +141,7 @@ func (r *CLIRunner) Run(ctx context.Context, request ScanRequest, emit EventSink
 	}
 	defer os.RemoveAll(directory)
 
-	python, _ := filepath.Abs(r.Python)
+	python, _ := filepath.Abs(r.python())
 	timeout := int(r.Timeout.Seconds())
 	if timeout < 1 {
 		timeout = 30

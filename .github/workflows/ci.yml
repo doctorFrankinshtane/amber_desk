@@ -86,15 +86,11 @@ jobs:
       - name: Test minimum supported Go
         run: go test -count=1 ./...
 
-  build:
-    name: Build / ${{ matrix.os }}
+  package:
+    name: Package release archives
     needs: [quality, minimum-go]
-    runs-on: ${{ matrix.os }}
+    runs-on: ubuntu-latest
     timeout-minutes: 10
-    strategy:
-      fail-fast: false
-      matrix:
-        os: [ubuntu-latest, windows-latest, macos-latest]
     steps:
       - name: Check out repository
         uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
@@ -105,5 +101,40 @@ jobs:
           go-version: 1.26.x
           cache-dependency-path: go.sum
 
-      - name: Build Amber Desk
-        run: go build -trimpath .
+      - name: Build archives for all platforms
+        run: tools/release.sh ci
+
+      - name: Upload archives
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: release-archives
+          path: dist/
+          retention-days: 7
+
+  release-smoke:
+    name: Release smoke / ${{ matrix.target }}
+    needs: package
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 15
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - { os: ubuntu-latest, target: linux-amd64, archive: tar.gz }
+          - { os: ubuntu-24.04-arm, target: linux-arm64, archive: tar.gz }
+          - { os: windows-latest, target: windows-amd64, archive: zip }
+          - { os: macos-latest, target: darwin-arm64, archive: tar.gz }
+          - { os: macos-15-intel, target: darwin-amd64, archive: tar.gz }
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+
+      - name: Download archives
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        with:
+          name: release-archives
+          path: dist/
+
+      - name: Run packaged binary and install Sherlock as a new user
+        shell: bash
+        run: tools/release-smoke.sh dist/amberdesk-ci-${{ matrix.target }}.${{ matrix.archive }}

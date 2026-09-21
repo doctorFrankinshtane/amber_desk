@@ -1,6 +1,8 @@
 package sherlock
 
 import (
+	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 )
@@ -44,5 +46,31 @@ func TestValidUsername(t *testing.T) {
 		if ValidUsername(value) {
 			t.Fatalf("expected %q to be invalid", value)
 		}
+	}
+}
+
+func TestDefaultPythonPrefersRuntimeNextToExecutable(t *testing.T) {
+	relative := defaultPython()
+	if filepath.IsAbs(relative) {
+		t.Fatalf("expected working-directory fallback, got %q", relative)
+	}
+	exe, err := os.Executable()
+	if err != nil {
+		t.Skip(err)
+	}
+	root := filepath.Join(filepath.Dir(exe), ".tools")
+	if _, err := os.Stat(root); err == nil {
+		t.Skip(".tools already exists next to test binary")
+	}
+	t.Cleanup(func() { os.RemoveAll(root) })
+	bundled := filepath.Join(filepath.Dir(exe), relative)
+	if err := os.MkdirAll(filepath.Dir(bundled), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(bundled, nil, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if got := defaultPython(); got != bundled {
+		t.Fatalf("defaultPython() = %q, want %q", got, bundled)
 	}
 }
