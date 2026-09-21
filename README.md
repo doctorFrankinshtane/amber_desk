@@ -10,7 +10,7 @@
 
 <p align="center">
   <a href="https://github.com/doctorFrankinshtane/amber_desk/actions/workflows/ci.yml"><img alt="CI status" src="https://github.com/doctorFrankinshtane/amber_desk/actions/workflows/ci.yml/badge.svg?branch=master"></a>
-  <img alt="Development status" src="https://img.shields.io/badge/status-active%20development-F2A23A?style=flat-square">
+  <img alt="Development status" src="https://img.shields.io/badge/status-alpha-F2A23A?style=flat-square">
   <img alt="Go 1.25 or newer" src="https://img.shields.io/badge/Go-1.25%2B-F2A23A?style=flat-square&logo=go&logoColor=090604">
   <img alt="Leaflet 1.9.4" src="https://img.shields.io/badge/Leaflet-1.9.4-F2A23A?style=flat-square&logo=leaflet&logoColor=090604">
   <img alt="Vanilla JavaScript ES2020 or newer" src="https://img.shields.io/badge/JavaScript-ES2020%2B-F2A23A?style=flat-square&logo=javascript&logoColor=090604">
@@ -37,7 +37,7 @@ Amber Desk keeps investigation data on your machine and presents it in a dense a
 - Optional native Sherlock username scans with manual result selection
 - English and Russian interface
 
-> **Development status:** active pre-release. Connector APIs and persisted schemas may evolve before the first stable release. Do not use real investigation data without backups.
+> **Alpha release (`v0.1.0-alpha`).** Connector APIs and persisted schemas may change without migration before the first stable release. Without a connected Obsidian vault, cases live in memory and are lost when the process stops. Do not use real investigation data without backups.
 
 ## Stack
 
@@ -52,6 +52,8 @@ Amber Desk keeps investigation data on your machine and presents it in a dense a
 | Browser smoke tests | Playwright `1.62.1` (development only) |
 
 ## Quick Start
+
+Download a prebuilt binary for Windows, Linux, or macOS from [Releases](https://github.com/doctorFrankinshtane/amber_desk/releases), run it, and open <http://localhost:8080>. Or build from source:
 
 ```powershell
 git clone https://github.com/doctorFrankinshtane/amber_desk.git
@@ -93,3 +95,7 @@ go build .
 ```
 
 Connector contracts are documented in [docs/CONNECTORS.md](docs/CONNECTORS.md). Third-party versions and licenses are listed in [docs/THIRD_PARTY.md](docs/THIRD_PARTY.md).
+
+## License
+
+[MIT](LICENSE). Bundled third-party components keep their own licenses, listed in [docs/THIRD_PARTY.md](docs/THIRD_PARTY.md).

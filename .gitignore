@@ -6,3 +6,8 @@ amberdesk.exe
 amberdesk-*.exe
 .tools/
 node_modules/
+
+# Local reference copy, not part of the project
+OSINT Framework.html
+OSINT Framework_files/
+dist/
